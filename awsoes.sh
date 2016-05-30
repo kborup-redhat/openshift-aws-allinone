@@ -322,6 +322,20 @@ sudo cp /etc/sysconfig/docker /etc/sysconfig/docker.original
 sudo sed -i 's/--selinux-enabled/--selinux-enabled --insecure-registry 172.30.0.0\/0/' /etc/sysconfig/docker " ;
 done
 
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+echo "Creating var file"
+set | egrep 'KEYNAME|VPCID|CLUSTERID|INTERNETGWID|REGION|AZ|DMZSUBNETID|INTERNALSUBNETID|EXTERNALROUTETABLEID|MASTERSGID|INFRASGID|NODESGID|AMIID|MASTER0|NODE0|INFRANODE0|RHN|LAB0|DNSOPT' | sort > $DIR/vars.sh
+chmod 700 $DIR/vars.sh
+
+chmod 700 $DIR/ansibleinst.sh
+./$DIRansibleinst.sh
+
 if [ $LPC == true ]; then
 cd ~/.ssh/
 tar cvf - ${KEYNAME}.pem | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP tar xvf - -C .ssh/
@@ -332,13 +346,13 @@ Host *
   GSSAPIAuthentication no
         User ec2-user
 EOF
-
+cat $DIR/ansible-hosts | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat > ansible-hosts'
 cat ~/config | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat >> .ssh/config'
 ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'chmod 600 .ssh/config'
 
 ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo yum -y install atomic-openshift-utils'
 
-sh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'echo StrictHostKeyChecking no | sudo tee -a /etc/ssh/ssh_config'
+ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'echo StrictHostKeyChecking no | sudo tee -a /etc/ssh/ssh_config'
 ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/hosts /etc/ansible/hosts'
 ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/.ssh/* /root/.ssh/'
 ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo chmod 600 /root/.ssh/config '
