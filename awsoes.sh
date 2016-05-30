@@ -308,5 +308,44 @@ sudo subscription-manager attach --pool=${RHNPOOL}
 sudo subscription-manager repos --disable='*'
 sudo subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-server-ose-3.2-rpms"
 sudo yum update -y
+reboot
 " ; done
+echo "sleeping until all nodes are back up"
+sleep 5m
+ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${MASTER00PUBLICIP} "sudo yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion"
 
+echo "Installing docker"
+for node in  ${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS} ; do ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${node} "
+echo Installing Docker on ${node}
+sudo yum install docker -y
+sudo cp /etc/sysconfig/docker /etc/sysconfig/docker.original
+sudo sed -i 's/--selinux-enabled/--selinux-enabled --insecure-registry 172.30.0.0\/0/' /etc/sysconfig/docker " ;
+done
+
+if [ $LPC == true ]; then
+cd ~/.ssh/
+tar cvf - ${KEYNAME}.pem | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP tar xvf - -C .ssh/
+
+cat << EOF > ~/config
+Host *
+        IdentityFile ~/.ssh/${KEYNAME}.pem
+  GSSAPIAuthentication no
+        User ec2-user
+EOF
+
+cat ~/config | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat >> .ssh/config'
+ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'chmod 600 .ssh/config'
+
+ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo yum -y install atomic-openshift-utils'
+
+sh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'echo StrictHostKeyChecking no | sudo tee -a /etc/ssh/ssh_config'
+ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/hosts /etc/ansible/hosts'
+ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/.ssh/* /root/.ssh/'
+ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo chmod 600 /root/.ssh/config '
+echo "Installing Your Environment"
+ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/config.yml'
+
+else 
+echo "Sorry we only do this with a mgmt host at the moment kinda tricked you there dont worry we just made the script ready for the option"
+exit 1
+fi
