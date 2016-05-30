@@ -1,7 +1,4 @@
 #!/bin/bash
-#Copyright RedHat Inc. 
-#This script is created under GPL, and is ment for creating a simple Openshift AWS environment with one single command. 
-#we cant and wont guarentee that this script will run flawsley and that it wont destroy anything, use at own risk. we can not be held accountable for its use.
 
 script_name=$(basename "$0")
 usage ()
@@ -12,13 +9,13 @@ usage $script_name OPTIONS
 Create an AWS environment running openshift 3.2 under RHEL 7.2
 
 EXAMPLE:
-$script_name --rhuser <username> --rhpass <password> --rhpool <poolid> --cluster <true / false> --local <true / false> --awsrhid <rhelImageId> --awsregion <Aws region>
+$script_name --rhuser <username> --rhpass <password> --rhpool <poolid> --cluster <true / false> --lpc <true / false> --awsrhid <rhelImageId> --awsregion <Aws region>
 OPTIONS EXPLAINED: 
 rhuser = your redhat user it
 rhpass = your redhat password 
 rhpool = from from "subscription-manager list --avalibale --all" (take the repo with openshift in it)
 cluster = do you want a clustered AWS setup with loadbalancer, multiple infranodes and routes then this is the option for you (currently under construction)
-local = Do you want to have a mgmt server where all commands can be run from, then this is the option for you otherwise i will run it all from you local computer.
+lpc = Do you want to have a mgmt server where all commands can be run from, then this is the option for you otherwise i will run it all from you local computer.
 awsrhid = this is the ID from your AWS console LAUNCH Instance you can pick Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type - ami-775e4f16 (take the ami- number and insert here)
 awsregion = use one of the regions listed in amazon. aws ec2 describe-regions will list something like: 
 
@@ -77,3 +74,36 @@ Select Show User Security Credentials
 EOF
 exit 1
 }
+
+
+OPTIONS=`getopt -o h -l help -l rhuser: -l rhpass: -l rhpool: -l cluster: -l lpc: -l awsrhid: -l awsregion: -- "$@"`
+
+if [ $? != 0 ]; then
+        usage
+fi
+
+RHUSER=""
+RHPASS=""
+RHPOOL=""
+CLUSTER=""
+LPC=""
+AWSRHID=""
+AWSREGION=""
+
+eval set -- "$OPTIONS"
+
+while true; do
+case "$1" in
+        -h|--help) usage;;
+        --rhuser) RHUSER=$2; shift 2;;
+        --rhpass) RHPASS=$2; shift 2;;
+        --rhpool) RHPOOL=$2; shift 2;;
+	--cluster) CLUSTER=$2; shift 2;;
+	--lpc) LPC=$2; shift 2;;
+	--awsrhid) AWSRHID=$2; shift 2;;
+	--awsregion) AWSREGION=$2; shift 2;;
+        --) shift; break;;
+        *) usage;;
+esac
+done
+
