@@ -35,7 +35,7 @@ EOF
 exit 1
 }
 
-aws ()
+awsmiss ()
 {
 cat << EOF
 I cant find AWS Client installed on your computer or you forgot to configure aws. 
@@ -106,4 +106,35 @@ case "$1" in
         *) usage;;
 esac
 done
+if [ ! -f /usr/local/bin/aws ]; then
+	awsmiss
+fi
+
+if [ -z "$RHUSER" ]; then
+        usage
+fi
+
+if [ -z "$RHPASS" ]; then
+        usage
+fi
+
+if [ -z "$RHPOOL" ]; then 
+	usage
+fi
+
+if [ -z "$CLUSTER" ]; then
+	usage
+fi
+
+if [ -z "$LPC" ]; then
+	usage
+fi
+
+if [ -z "$AWSRHID" ]; then
+	usage
+fi
+
+if [ -z "$AWSREGION" ]; then
+	usage
+fi
 
