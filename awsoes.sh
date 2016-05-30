@@ -9,7 +9,7 @@ usage $script_name OPTIONS
 Create an AWS environment running openshift 3.2 under RHEL 7.2
 
 EXAMPLE:
-$script_name --rhuser <username> --rhpass <password> --rhpool <poolid> --cluster <true / false> --lpc <true / false> --awsrhid <rhelImageId> --awsregion <Aws region>
+$script_name --rhuser <username> --rhpool <poolid> --cluster <true / false> --lpc <true / false> --awsrhid <rhelImageId> --awsregion <Aws region> --dnsopt=dnsname
 OPTIONS EXPLAINED: 
 rhuser = your redhat user it
 rhpass = your redhat password 
@@ -18,6 +18,7 @@ cluster = do you want a clustered AWS setup with loadbalancer, multiple infranod
 lpc = Do you want to have a mgmt server where all commands can be run from, then this is the option for you otherwise i will run it all from you local computer.
 awsrhid = this is the ID from your AWS console LAUNCH Instance you can pick Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type - ami-775e4f16 (take the ami- number and insert here)
 awsregion = use one of the regions listed in amazon. aws ec2 describe-regions will list something like: 
+dnsopt = dnsname of router and servers could be cloud.pfy.dk cloud.redhat.com or cloud.google.com depending on what you own.
 
 REGIONS	ec2.eu-west-1.amazonaws.com	eu-west-1
 REGIONS	ec2.ap-southeast-1.amazonaws.com	ap-southeast-1
@@ -76,7 +77,7 @@ exit 1
 }
 
 
-OPTIONS=`getopt -o h -l help -l rhuser: -l rhpass: -l rhpool: -l cluster: -l lpc: -l awsrhid: -l awsregion: -- "$@"`
+OPTIONS=`getopt -o h -l help -l rhuser: -l rhpool: -l cluster: -l clusterid: -l lpc: -l awsrhid: -l awsregion: -l dnsopt: -- "$@"`
 
 if [ $? != 0 ]; then
         usage
@@ -86,9 +87,11 @@ RHUSER=""
 RHPASS=""
 RHPOOL=""
 CLUSTER=""
+CLUSTERID=""
 LPC=""
 AWSRHID=""
 AWSREGION=""
+DNSOPT=""
 
 eval set -- "$OPTIONS"
 
@@ -96,12 +99,13 @@ while true; do
 case "$1" in
         -h|--help) usage;;
         --rhuser) RHUSER=$2; shift 2;;
-        --rhpass) RHPASS=$2; shift 2;;
         --rhpool) RHPOOL=$2; shift 2;;
 	--cluster) CLUSTER=$2; shift 2;;
+	--clusterid) CLUSTERID=$2: shift 2;;
 	--lpc) LPC=$2; shift 2;;
 	--awsrhid) AWSRHID=$2; shift 2;;
 	--awsregion) AWSREGION=$2; shift 2;;
+	--dnsopt) DNSOPT=$2; shift 2;;
         --) shift; break;;
         *) usage;;
 esac
@@ -114,7 +118,12 @@ if [ -z "$RHUSER" ]; then
         usage
 fi
 
-if [ -z "$RHPASS" ]; then
+echo "Please enter you password for RHN";
+stty -echo
+read RHN;
+stty echo
+
+if [ -z "$RHN" ]; then
         usage
 fi
 
@@ -123,6 +132,10 @@ if [ -z "$RHPOOL" ]; then
 fi
 
 if [ -z "$CLUSTER" ]; then
+	usage
+fi
+
+if [ -z "$CLUSTERID" ]; then
 	usage
 fi
 
@@ -137,4 +150,163 @@ fi
 if [ -z "$AWSREGION" ]; then
 	usage
 fi
+
+echo -n "Do you have a passwordless ssh key for amazon (y/n)? "
+read answer
+if echo "$answer" | grep -iq "^y" ;then
+    echo "type in keyname that have access to amazon alrady"
+    read keyname
+    KEYNAME=$keyname 
+else
+    echo "Creating a key for amazon and uploading it"
+	echo "name your key no spaces"
+	read keyname	
+	KEYNAME=$keyname
+	aws ec2 create-key-pair --key-name ${KEYNAME} --query 'KeyMaterial' --output text > ~/.ssh/${KEYNAME}.pem
+	chmod 600 ~/.ssh/${KEYNAME}.pem
+fi
+
+echo "Creating VPC Network"
+VPCID=`aws ec2 create-vpc --cidr-block 192.168.0.0/24 --output text | awk '{print $7}'`
+aws ec2 create-tags --resource $VPCID --tags Key=deployment,Value=paas Key=Name,Value=${CLUSTERID}_vpc
+aws ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-support "{\"Value\":true}"
+aws ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-hostnames "{\"Value\":true}"
+echo "Creating Gateway"
+INTERNETGWID=`aws ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId' --output text`
+aws ec2 create-tags --resource $INTERNETGWID --tags Key=deployment,Value=paas Key=type,Value=gateway Key=Name,Value=${CLUSTERID}_DMZSubnet
+aws ec2 attach-internet-gateway --internet-gateway-id $INTERNETGWID --vpc-id $VPCID
+
+echo "Setting Region IDS"
+REGIONIDS=`aws ec2 describe-availability-zones --region ${REGION}  --output json | grep ZoneName | xargs`
+AZ1=$REGIONIDS | awk '{print $2}'
+AZ2=$REGIONIDS | awk '{print $4}'
+AZ3=$REGIONIDS | awk '{print $6}'
+
+DMZSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.0/26  --availability-zone ${AZ1} --query 'Subnet.SubnetId' --output text`
+aws ec2 create-tags --resource $DMZSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_DMZSubnet
+INTERNALSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.128/26 --availability-zone ${AZ1} --query 'Subnet.SubnetId' --output text`
+aws ec2 create-tags --resource $INTERNALSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_INTERNALSubnet
+EXTERNALROUTETABLEID=`aws ec2 create-route-table --vpc-id $VPCID --query 'RouteTable.RouteTableId' --output text`
+aws ec2 create-route --route-table-id $EXTERNALROUTETABLEID --destination-cidr-block 0.0.0.0/0 --gateway-id $INTERNETGWID
+aws ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $DMZSUBNETID
+aws ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $INTERNALSUBNETID
+#Service groups are hardcoded should we change that ?
+MASGNAME=mastersg
+INSGNAME=infrasg
+NSGNAME=nodesg
+
+MASTERSGID=`aws ec2 create-security-group --group-name $MASGNAME --description "Masters Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws ec2 create-tags --resource $MASTERSGID --tags Key=deployment,Value=pass Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${MASGNAME}
+INFRASGID=`aws ec2 create-security-group --group-name $INSGNAME --description "Infra Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws ec2 create-tags --resource $INFRASGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${INSGNAME}
+NODESGID=`aws ec2 create-security-group --group-name $NSGNAME --description "Compute Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws ec2 create-tags --resource $NODESGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NSSGNAME}
+
+echo "Creating firewalls as per version 3.1 will be updated before final release"
+
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 4789 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --source-group $NODESGID
+
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 53 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $INFRASGID
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 53 --source-group $INFRASGID
+
+aws ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 80 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 443 --cidr 0.0.0.0/0
+
+aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --port 10250 --source-group $MASTERSGID
+aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $MASTERSGID
+aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $NODESGID
+echo "Setting AWS RedHat Image Name"
+AMDID=$AWSRHID
+
+echo "Creating Master Node"
+
+MASTER00OID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+aws ec2 create-tags --resource $MASTER00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
+MASTER00PUBLICDNS=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTMASTER00PUBLICDNS=master00.${DNSOPT}
+MASTER00PUBLICIP=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+MASTER00PRIVATEIP=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+
+if [ $LPC == true ]; then
+echo "Creating MGMT Node"
+LAB00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+LAB00PUBLICDNS=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTLAB00PUBLICDNS=lab.${DNSOPT}
+LAB00PUBLICIP=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+LAB00PRIVATEIP=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+echo "sleeping while we wait for node to become ready its in the cloud!!"
+
+while test $? -gt 0
+   do
+   sleep 5 # highly recommended - if it's in your local network, it can try an awful lot pretty quick...
+   echo "Trying until it works..."
+ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${LAB00PUBLICIP} "
+sudo sudo rm  /etc/yum.repos.d/*
+sudo subscription-manager register --username=${RHNID} --password=${RHNPASS}
+sudo subscription-manager attach --pool=${RHNPOOL}
+sudo subscription-manager repos --disable='*'
+sudo subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-server-ose-3.2-rpms"
+sudo yum update -y
+" ; 
+done
+
+fi
+
+echo "Creating nodes"
+INSTANCESTEMP=`aws ec2 run-instances --image-id $AMIID  --count 2 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NODESGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+
+export NODE00ID=`echo $INSTANCESTEMP | awk '{print $1}'`
+export NODE01ID=`echo $INSTANCESTEMP | awk '{print $2}'`
+
+aws ec2 create-tags --resource $NODE00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_node00 Key=clusterid,Value=${CLUSTERID}
+aws ec2 create-tags --resource $NODE01ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_node01 Key=clusterid,Value=${CLUSTERID}
+
+NODE00PUBLICDNS=`aws ec2 describe-instances --instance-ids $NODE00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTNODE00PUBLICDNS=node00.${DNSOPT}
+NODE00PRIVATEIP=`aws ec2 describe-instances --instance-ids $NODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+NODE00PUBLICIP=`aws ec2 describe-instances --instance-ids $NODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+
+
+NODE01PUBLICDNS=`aws ec2 describe-instances --instance-ids $NODE01ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTNODE01PUBLICDNS=node01.${DNSOPT}
+NODE01PRIVATEIP=`aws ec2 describe-instances --instance-ids $NODE01ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+NODE01PUBLICIP=`aws ec2 describe-instances --instance-ids $NODE01ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+
+echo "Creating Infra Node"
+INFRANODE00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $INFRASGID $NODESGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+aws ec2 create-tags --resource $INFRANODE00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_infranode00 Key=clusterid,Value=${CLUSTERID}
+
+INFRANODE00PUBLICDNS=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTINFRANODE00PUBLICDNS=infranode00.${DNSOPT}
+INFRANODE00PRIVATEIP=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+INFRANODE00PUBLICIP=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+
+echo "Creating NFS Node"
+
+NFSNODE00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NODESGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+SHORTNFSNODE00DNS=nfs00.${DNSOPT}
+NFS00PRIVATEIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+NFS00PUBLICIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+aws ec2 create-tags --resource $NFSNODE00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_nfsnode00 Key=clusterid,Value=${CLUSTERID}
+
+echo "Setting up RHN on nodes"
+nodes="${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS}"
+
+for node in ${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS} ; do ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${node} "
+echo Configure the Repositories on ${node}
+sudo sudo rm  /etc/yum.repos.d/*
+sudo subscription-manager register --username=${RHNID} --password=${RHNPASS}
+sudo subscription-manager attach --pool=${RHNPOOL}
+sudo subscription-manager repos --disable='*'
+sudo subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-server-ose-3.2-rpms"
+sudo yum update -y
+" ; done
 
