@@ -354,7 +354,11 @@ set | egrep 'KEYNAME|VPCID|CLUSTERID|INTERNETGWID|REGION|AZ|DMZSUBNETID|INTERNAL
 chmod 700 $DIR/vars.sh
 
 chmod 700 $DIR/ansibleinst.sh
-./$DIRansibleinst.sh
+./$DIR/ansibleinst.sh
+
+#Adding nfs disks
+tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFSPUBLICIP tar xvf -
+ssh -ti ~/.ssh/${KEYNAME}.pem $NFSPUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
 
 if [ $LPC == true ]; then
 cd ~/.ssh/
@@ -366,18 +370,19 @@ Host *
   GSSAPIAuthentication no
         User ec2-user
 EOF
+
 cat $DIR/ansible-hosts | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat > ansible-hosts'
 cat ~/config | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat >> .ssh/config'
 ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'chmod 600 .ssh/config'
 
-ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo yum -y install atomic-openshift-utils'
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo yum -y install atomic-openshift-utils'
 
-ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'echo StrictHostKeyChecking no | sudo tee -a /etc/ssh/ssh_config'
-ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/hosts /etc/ansible/hosts'
-ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/.ssh/* /root/.ssh/'
-ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo chmod 600 /root/.ssh/config '
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'echo StrictHostKeyChecking no | sudo tee -a /etc/ssh/ssh_config'
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/hosts /etc/ansible/hosts'
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/.ssh/* /root/.ssh/'
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo chmod 600 /root/.ssh/config '
 echo "Installing Your Environment"
-ssh -t -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/config.yml'
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/config.yml'
 
 else 
 echo "Sorry we only do this with a mgmt host at the moment kinda tricked you there dont worry we just made the script ready for the option"
