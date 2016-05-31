@@ -194,6 +194,7 @@ aws ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id
 MASGNAME=mastersg
 INSGNAME=infrasg
 NSGNAME=nodesg
+NFSNAME=nfssg
 
 MASTERSGID=`aws ec2 create-security-group --group-name $MASGNAME --description "Masters Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
 aws ec2 create-tags --resource $MASTERSGID --tags Key=deployment,Value=pass Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${MASGNAME}
@@ -201,6 +202,9 @@ INFRASGID=`aws ec2 create-security-group --group-name $INSGNAME --description "I
 aws ec2 create-tags --resource $INFRASGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${INSGNAME}
 NODESGID=`aws ec2 create-security-group --group-name $NSGNAME --description "Compute Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
 aws ec2 create-tags --resource $NODESGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NSSGNAME}
+NFSSGID=`aws ec2 create-security-group --group-name $NFSNAME --description "NFS Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws ec2 create-tags --resource $NFSSGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NFSNAME}
+
 
 echo "Creating firewalls as per version 3.1 will be updated before final release"
 
@@ -225,6 +229,20 @@ aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --p
 aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --port 10250 --source-group $MASTERSGID
 aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $MASTERSGID
 aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $NODESGID
+
+#Setting NFS.
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 111 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 2049 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 20048 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 50825 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 53248 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 111 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 2049 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 20048 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 50825 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 53248 --source-group $NODESGID
+
+
 echo "Setting AWS RedHat Image Name"
 AMDID=$AWSRHID
 
@@ -293,7 +311,7 @@ INFRANODE00PUBLICIP=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --
 
 echo "Creating NFS Node"
 
-NFSNODE00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NODESGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+NFSNODE00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NFSSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 SHORTNFSNODE00DNS=nfs00.${DNSOPT}
 NFS00PRIVATEIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 NFS00PUBLICIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
