@@ -209,6 +209,8 @@ aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp -
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 4789 --source-group $NODESGID
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $NODESGID
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 8053 --source-group $NODESGID
+
 
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $NODESGID
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 53 --source-group $NODESGID
