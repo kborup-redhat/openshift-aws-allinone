@@ -365,3 +365,12 @@ else
 echo "Sorry we only do this with a mgmt host at the moment kinda tricked you there dont worry we just made the script ready for the option"
 exit 1
 fi
+
+for node in  ${MASTER00PUBLICIP}
+do
+ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${node} "
+sudo yum -y install httpd-tools
+sudo touch /etc/origin/openshift-passwd
+sudo htpasswd -b /etc/origin/openshift-passwd testuser flaf42mn
+";
+done
