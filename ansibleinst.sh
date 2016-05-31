@@ -22,19 +22,12 @@ debug_level=4
 openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 'challenge': 'true', 'kind': 'HTPasswdPasswordIdentityProvider', 'filename': '/etc/origin/openshift-passwd'}]
 osm_default_node_selector='env=dev'
 
-# Cloud Provider Configuration
-#
-# Note: You may make use of environment variables rather than store
-# sensitive configuration within the ansible inventory.
-# For example:
-#openshift_cloudprovider_aws_access_key="{{ lookup('env','AWS_ACCESS_KEY_ID') }}"
-#openshift_cloudprovider_aws_secret_key="{{ lookup('env','AWS_SECRET_ACCESS_KEY') }}"
-#
-# AWS
-#openshift_cloudprovider_kind=aws
-# Note: IAM profiles may be used instead of storing API credentials on disk.
-#openshift_cloudprovider_aws_access_key=aws_access_key_id
-#openshift_cloudprovider_aws_secret_key=aws_secret_access_key
+osm_cluster_network_cidr=10.10.0.0/16
+openshift_dns_ip=172.172.0.1
+openshift_portal_net = "172.172.0.0/16"
+openshift_use_dnsmasq=false
+osm_use_cockpit=false
+
 
 # default subdomain to use for exposed routes
 openshift_master_default_subdomain=${DOMAIN}
