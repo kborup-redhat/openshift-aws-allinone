@@ -317,7 +317,9 @@ NFS00PRIVATEIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query R
 NFS00PUBLICIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 aws ec2 create-tags --resource $NFSNODE00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_nfsnode00 Key=clusterid,Value=${CLUSTERID}
 NFSVOL=`aws ec2 create-volume --region $AWSREGION --availability-zone $AZ1 --size 20 --volume-type gp2 --iops 30 | awk '{print $7}'`
-aws ec2 attach-volume --volume-id $NFSVOL --instance-id $NFSNODE00ID --device /dev/xvdb 
+echo "sleeping 4 minutts waiting for the disk to be ready"
+sleep 4m 
+aws ec2 attach-volume --volume-id $NFSVOL --instance-id $NFSNODE00ID --device /dev/sdb 
 
 echo "Setting up RHN on nodes"
 nodes="${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS}"
