@@ -309,13 +309,15 @@ SHORTINFRANODE00PUBLICDNS=infranode00.${DNSOPT}
 INFRANODE00PRIVATEIP=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 INFRANODE00PUBLICIP=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 
-echo "Creating NFS Node"
+echo "Creating NFS Node and Adding an extra disk"
 
 NFSNODE00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NFSSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 SHORTNFSNODE00DNS=nfs00.${DNSOPT}
 NFS00PRIVATEIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 NFS00PUBLICIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 aws ec2 create-tags --resource $NFSNODE00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_nfsnode00 Key=clusterid,Value=${CLUSTERID}
+NFSVOL=`aws ec2 create-volume --region $AWSREGION --availability-zone $AZ1 --size 20 --volume-type gp2 --iops 30 | awk '{print $7}'`
+aws ec2 attach-volume --volume-id $NFSVOL --instance-id $NFSNODE00ID --device /dev/xvdb 
 
 echo "Setting up RHN on nodes"
 nodes="${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS}"
