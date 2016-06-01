@@ -463,9 +463,52 @@ secrets:
 - name: metrics-deployer
 EOF
 
-cat $DIR/sa.json | ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP 'cat > sa.json'
+scp -ti ~/.ssh/${KEYNAME}.pem $DIR/sa.json  ec2-user@$MASTER00PUBLICIP: 
 
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo 
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat sa.json | oc create -f -" 
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer"
+ssh -it ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster ; sudo  oc secrets new metrics-deployer nothing=/dev/null"
+
+cat << EOF > $DIR/metrics-vol
+{
+  "apiVersion": "v1",
+  "kind": "PersistentVolume",
+  "metadata": {
+    "name": "cassandra-volume"
+  },
+  "spec": {
+    "capacity": {
+        "storage": "15Gi"
+        },
+    "accessModes": [ "ReadWriteOnce","ReadWriteMany" ],
+    "nfs": {
+        "path": "/nfsexport/cassandra-volume",
+        "server": "$NFS00PRIVATEIP"
+    }
+  }
+}
+EOF
+
+cat << EOF > $DIR/logging-sa
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: logging-deployer
+secrets:
+- name: logging-deployer
+EOF
+
+
+
+scp -ti ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
+scp -ti ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DOMAIN},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${REGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
+
+
+
+
 
 else 
 echo "Sorry we only do this with a mgmt host at the moment kinda tricked you there dont worry we just made the script ready for the option"
