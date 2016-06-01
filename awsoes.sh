@@ -117,7 +117,7 @@ fi
 if [ -z "$RHUSER" ]; then
         usage
 fi
-echo $RHUSER
+
 echo "Please enter you password for RHN";
 stty -echo
 read RHN;
@@ -126,27 +126,21 @@ stty echo
 if [ -z "$RHPOOL" ]; then 
 	usage
 fi
-echo $RHPOOL
 if [ -z "$CLUSTER" ]; then
 	usage
 fi
-echo $CLUSTER
 if [ -z "$CLUSTERID" ]; then
 	usage
 fi
-echo $CLUSTERID
 if [ -z "$LPC" ]; then
 	usage
 fi
-echo $LPC
 if [ -z "$AWSRHID" ]; then
 	usage
 fi
-echo $AWSRHID
 if [ -z "$AWSREGION" ]; then
 	usage
 fi
-echo $AWSREGION
 
 echo -n "Do you have a passwordless ssh key for amazon (y/n)? "
 read answer
@@ -178,15 +172,18 @@ echo "Gateway Created"
 
 echo "Setting Region IDS"
 REGIONIDS=`aws ec2 describe-availability-zones --region ${AWSREGION}  --output json | grep ZoneName | xargs`
-AZ1=$REGIONIDS | awk '{print $2}'
-AZ2=$REGIONIDS | awk '{print $4}'
-AZ3=$REGIONIDS | awk '{print $6}'
-echo $AZ1 $AZ2 $AZ3 setup
+AZ1=`echo $REGIONIDS | awk '{print $2}'`
+AZ2=`echo $REGIONIDS | awk '{print $4}'`
+AZ3=`echo $REGIONIDS | awk '{print $6}'`
 
+echo $AZ1 
+echo $AZ2 
+echo $AZ3
+echo $VPCID
 echo "Creating SubnetID"
-DMZSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.0/26  --availability-zone ${AZ1} --query 'Subnet.SubnetId' --output text`
+DMZSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.0/26  --availability-zone $AZ1 --query 'Subnet.SubnetId' --output text`
 aws ec2 create-tags --resource $DMZSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_DMZSubnet
-INTERNALSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.128/26 --availability-zone ${AZ1} --query 'Subnet.SubnetId' --output text`
+INTERNALSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.128/26 --availability-zone $AZ1 --query 'Subnet.SubnetId' --output text`
 aws ec2 create-tags --resource $INTERNALSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_INTERNALSubnet
 EXTERNALROUTETABLEID=`aws ec2 create-route-table --vpc-id $VPCID --query 'RouteTable.RouteTableId' --output text`
 echo "Subnet ID Created"
@@ -252,7 +249,7 @@ aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --po
 
 
 echo "Setting AWS RedHat Image Name"
-AMDID=$AWSRHID
+AMIID=`echo $AWSRHID`
 
 echo "Creating Master Node"
 
