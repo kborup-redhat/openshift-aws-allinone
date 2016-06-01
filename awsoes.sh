@@ -251,9 +251,9 @@ aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --po
 echo "Setting AWS RedHat Image Name"
 AMIID=`echo $AWSRHID`
 
-echo "Creating Master Node"
-
-MASTER00OID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+ 
+MASTER00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+echo $MASTER00ID
 aws ec2 create-tags --resource $MASTER00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
 MASTER00PUBLICDNS=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
 SHORTMASTER00PUBLICDNS=master00.${DNSOPT}
@@ -272,13 +272,12 @@ sleep 5m
 
 ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${LAB00PUBLICIP} "
 sudo sudo rm  /etc/yum.repos.d/*
-sudo subscription-manager register --username=${RHNID} --password=${RHNPASS}
-sudo subscription-manager attach --pool=${RHNPOOL}
+sudo subscription-manager register --username=${RHUSER} --password=${RHPASS}
+sudo subscription-manager attach --pool=${RHPOOL}
 sudo subscription-manager repos --disable='*'
-sudo subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-server-ose-3.2-rpms"
+sudo subscription-manager repos --enable=rhel-7-server-rpms --enable=rhel-7-server-extras-rpms --enable=rhel-7-server-ose-3.2-rpms
 sudo yum update -y
 " ; 
-done
 
 fi
 
@@ -329,8 +328,8 @@ nodes="${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01P
 for node in ${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS} ; do ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${node} "
 echo Configure the Repositories on ${node}
 sudo sudo rm  /etc/yum.repos.d/*
-sudo subscription-manager register --username=${RHNID} --password=${RHNPASS}
-sudo subscription-manager attach --pool=${RHNPOOL}
+sudo subscription-manager register --username=${RHUSER} --password=${RHPASS}
+sudo subscription-manager attach --pool=${RHPOOL}
 sudo subscription-manager repos --disable='*'
 sudo subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-server-ose-3.2-rpms"
 sudo yum update -y
