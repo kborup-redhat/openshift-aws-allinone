@@ -388,10 +388,60 @@ ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo chmod 600 /root/
 echo "Installing Your Environment"
 ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo ansible-playbook /usr/share/ansible/openshift-ansible/playbooks/byo/config.yml'
 
-else 
-echo "Sorry we only do this with a mgmt host at the moment kinda tricked you there dont worry we just made the script ready for the option"
-exit 1
-fi
+
+#Router and Registry deployment
+echo "Deploying router and registry"
+
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace default -o yaml > namespace.default.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: env=infra' namespace.default.yaml ; oc replace -f namespace.default.yaml"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
+
+
+cat << EOF > $DIR/pvconfig
+{
+  "apiVersion": "v1",
+  "kind": "PersistentVolume",
+  "metadata": {
+    "name": "registry-vol"
+  },
+  "spec": {
+    "capacity": {
+        "storage": "5Gi"
+        },
+    "accessModes": [ "ReadWriteMany" ],
+    "nfs": {
+        "path": "/nfsexport/registry-volume",
+        "server": "$NFS00PRIVATEIP"
+    }
+  }
+}
+
+EOF
+
+cat << EOF > $DIR/pvclaim
+{
+  "apiVersion": "v1",
+  "kind": "PersistentVolumeClaim",
+  "metadata": {
+    "name": "registry-claim"
+  },
+  "spec": {
+    "accessModes": [ "ReadWriteMany" ],
+    "resources": {
+      "requests": {
+        "storage": "5Gi"
+      }
+    }
+  }
+}
+EOF
+
+cat pvclaim | ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP 'cat > pvclaim'
+cat pvconfig | ssh -ti ~/.ssh/${KEYNAME}.pem -i ec2-user $MASTER00PUBLICIP 'cat > pvconfig'
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat pvconfig | oc create -f -"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat pvclaim | oc create -f -"
+
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc volume dc/docker-registry --add --overwrite -t persistentVolumeClaim --claim-name=registry-claim --name=registry-storage"
 
 for node in  ${MASTER00PUBLICIP}
 do
@@ -401,3 +451,23 @@ sudo touch /etc/origin/openshift-passwd
 sudo htpasswd -b /etc/origin/openshift-passwd testuser flaf42mn
 ";
 done
+
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace openshift-infra -o yaml > openshift-infra.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: env=infra' openshift-infra.yaml ; oc replace -f openshift-infra.yaml"
+
+cat << EOF > $DIR/sa.json
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: metrics-deployer
+secrets:
+- name: metrics-deployer
+EOF
+
+cat $DIR/sa.json | ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP 'cat > sa.json'
+
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo 
+
+else 
+echo "Sorry we only do this with a mgmt host at the moment kinda tricked you there dont worry we just made the script ready for the option"
+exit 1
+fi
