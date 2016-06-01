@@ -20,7 +20,6 @@ ansible_sudo=true
 deployment_type=openshift-enterprise
 debug_level=4
 openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 'challenge': 'true', 'kind': 'HTPasswdPasswordIdentityProvider', 'filename': '/etc/origin/openshift-passwd'}]
-osm_default_node_selector='env=dev'
 
 osm_cluster_network_cidr=10.10.0.0/16
 openshift_dns_ip=172.172.0.1
@@ -39,7 +38,7 @@ osm_default_node_selector='env=dev'
 # Router will only be created if nodes matching this label are present.
 # Default value: 'region=infra'
 #openshift_hosted_router_selector='region=infra'
-openshift_hosted_router_selector='env=infra'
+openshift_hosted_router_selector='region=infra'
 openshift_hosted_router_replicas=1
 
 
@@ -54,7 +53,7 @@ openshift_hosted_router_replicas=1
 # Registry selector (optional)
 # Registry will only be created if nodes matching this label are present.
 # Default value: 'region=infra'
-openshift_registry_selector='env=infra'
+openshift_registry_selector='region=infra'
 
 # Configure metricsPublicURL in the master config for cluster metrics
 openshift_master_metrics_public_url=https://hawkular-metrics.${DOMAIN}
@@ -71,9 +70,9 @@ master00.${DOMAIN}
 
 # host group for nodes, includes region info
 [nodes]
-master00.${DOMAIN} openshift_public_hostname="master00.${DOMAIN}" openshift_hostname="${MASTER00PRIVATEIP}" openshift_schedulable=False openshift_node_labels="{'name': 'master00'}"
-infranode00.${DOMAIN}  openshift_public_hostname="infranode00.${DOMAIN}" openshift_hostname="${INFRANODE00PRIVATEIP}" openshift_node_labels="{'name': 'infranode00','region': 'ap-southeast-2', 'zone': 'ap-southeast-2a', 'env': 'infra'}"
-node00.${DOMAIN} openshift_hostname="${NODE00PRIVATEIP}" openshift_node_labels="{'name': 'node00','region': 'ap-southeast-2', 'zone': 'ap-southeast-2a', 'env': 'dev'}"
-node01.${DOMAIN}  openshift_hostname="${NODE01PRIVATEIP}" openshift_node_labels="{'name': 'node01','region': 'ap-southeast-2', 'zone': 'ap-southeast-2a', 'env': 'dev'}"
+master00.${DOMAIN} openshift_public_hostname="master00.${DOMAIN}" " openshift_schedulable=False openshift_node_labels="{'name': 'master00'}"
+infranode00.${DOMAIN}  openshift_public_hostname="infranode00.${DOMAIN}" " openshift_node_labels="{'name': 'infranode00','region': '${REGION}', 'zone': '${AZ1}', 'region': 'infra'}"
+node00.${DOMAIN}  openshift_node_labels="{'name': 'node00','region': '${REGION}', 'zone': '${AZ1}', 'env': 'dev'}"
+node01.${DOMAIN}  openshift_node_labels="{'name': 'node01','region': '${REGION}', 'zone': '${AZ1}', 'env': 'dev'}"
 
 EOF
