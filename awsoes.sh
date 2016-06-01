@@ -101,7 +101,7 @@ case "$1" in
         --rhuser) RHUSER=$2; shift 2;;
         --rhpool) RHPOOL=$2; shift 2;;
 	--cluster) CLUSTER=$2; shift 2;;
-	--clusterid) CLUSTERID=$2: shift 2;;
+	--clusterid) CLUSTERID=$2; shift 2;;
 	--lpc) LPC=$2; shift 2;;
 	--awsrhid) AWSRHID=$2; shift 2;;
 	--awsregion) AWSREGION=$2; shift 2;;
@@ -117,39 +117,36 @@ fi
 if [ -z "$RHUSER" ]; then
         usage
 fi
-
+echo $RHUSER
 echo "Please enter you password for RHN";
 stty -echo
 read RHN;
 stty echo
 
-if [ -z "$RHN" ]; then
-        usage
-fi
-
 if [ -z "$RHPOOL" ]; then 
 	usage
 fi
-
+echo $RHPOOL
 if [ -z "$CLUSTER" ]; then
 	usage
 fi
-
+echo $CLUSTER
 if [ -z "$CLUSTERID" ]; then
 	usage
 fi
-
+echo $CLUSTERID
 if [ -z "$LPC" ]; then
 	usage
 fi
-
+echo $LPC
 if [ -z "$AWSRHID" ]; then
 	usage
 fi
-
+echo $AWSRHID
 if [ -z "$AWSREGION" ]; then
 	usage
 fi
+echo $AWSREGION
 
 echo -n "Do you have a passwordless ssh key for amazon (y/n)? "
 read answer
@@ -171,31 +168,42 @@ VPCID=`aws ec2 create-vpc --cidr-block 192.168.0.0/24 --output text | awk '{prin
 aws ec2 create-tags --resource $VPCID --tags Key=deployment,Value=paas Key=Name,Value=${CLUSTERID}_vpc
 aws ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-support "{\"Value\":true}"
 aws ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-hostnames "{\"Value\":true}"
+echo "VPC Created"
+
 echo "Creating Gateway"
 INTERNETGWID=`aws ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId' --output text`
 aws ec2 create-tags --resource $INTERNETGWID --tags Key=deployment,Value=paas Key=type,Value=gateway Key=Name,Value=${CLUSTERID}_DMZSubnet
 aws ec2 attach-internet-gateway --internet-gateway-id $INTERNETGWID --vpc-id $VPCID
+echo "Gateway Created"
 
 echo "Setting Region IDS"
-REGIONIDS=`aws ec2 describe-availability-zones --region ${REGION}  --output json | grep ZoneName | xargs`
+REGIONIDS=`aws ec2 describe-availability-zones --region ${AWSREGION}  --output json | grep ZoneName | xargs`
 AZ1=$REGIONIDS | awk '{print $2}'
 AZ2=$REGIONIDS | awk '{print $4}'
 AZ3=$REGIONIDS | awk '{print $6}'
+echo $AZ1 $AZ2 $AZ3 setup
 
+echo "Creating SubnetID"
 DMZSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.0/26  --availability-zone ${AZ1} --query 'Subnet.SubnetId' --output text`
 aws ec2 create-tags --resource $DMZSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_DMZSubnet
 INTERNALSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.128/26 --availability-zone ${AZ1} --query 'Subnet.SubnetId' --output text`
 aws ec2 create-tags --resource $INTERNALSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_INTERNALSubnet
 EXTERNALROUTETABLEID=`aws ec2 create-route-table --vpc-id $VPCID --query 'RouteTable.RouteTableId' --output text`
+echo "Subnet ID Created"
+
+echo "Creating Route"
 aws ec2 create-route --route-table-id $EXTERNALROUTETABLEID --destination-cidr-block 0.0.0.0/0 --gateway-id $INTERNETGWID
 aws ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $DMZSUBNETID
 aws ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $INTERNALSUBNETID
+echo "Done Creating Routes"
+
 #Service groups are hardcoded should we change that ?
 MASGNAME=mastersg
 INSGNAME=infrasg
 NSGNAME=nodesg
 NFSNAME=nfssg
 
+echo "Creating security Groups"
 MASTERSGID=`aws ec2 create-security-group --group-name $MASGNAME --description "Masters Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
 aws ec2 create-tags --resource $MASTERSGID --tags Key=deployment,Value=pass Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${MASGNAME}
 INFRASGID=`aws ec2 create-security-group --group-name $INSGNAME --description "Infra Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
@@ -204,7 +212,7 @@ NODESGID=`aws ec2 create-security-group --group-name $NSGNAME --description "Com
 aws ec2 create-tags --resource $NODESGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NSSGNAME}
 NFSSGID=`aws ec2 create-security-group --group-name $NFSNAME --description "NFS Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
 aws ec2 create-tags --resource $NFSSGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NFSNAME}
-
+echo "Done Creating Security Groups"
 
 echo "Creating firewalls as per version 3.1 will be updated before final release"
 
