@@ -268,11 +268,8 @@ SHORTLAB00PUBLICDNS=lab.${DNSOPT}
 LAB00PUBLICIP=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 LAB00PRIVATEIP=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 echo "sleeping while we wait for node to become ready its in the cloud!!"
+sleep 5m
 
-while test $? -gt 0
-   do
-   sleep 5 # highly recommended - if it's in your local network, it can try an awful lot pretty quick...
-   echo "Trying until it works..."
 ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${LAB00PUBLICIP} "
 sudo sudo rm  /etc/yum.repos.d/*
 sudo subscription-manager register --username=${RHNID} --password=${RHNPASS}
@@ -321,7 +318,7 @@ SHORTNFSNODE00DNS=nfs00.${DNSOPT}
 NFS00PRIVATEIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 NFS00PUBLICIP=`aws ec2 describe-instances --instance-ids $NFSNODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 aws ec2 create-tags --resource $NFSNODE00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_nfsnode00 Key=clusterid,Value=${CLUSTERID}
-NFSVOL=`aws ec2 create-volume --region $AWSREGION --availability-zone $AZ1 --size 20 --volume-type gp2 --iops 30 | awk '{print $7}'`
+NFSVOL=`aws ec2 create-volume --region $AWSREGION --availability-zone $AZ1 --size 20 --volume-type gp2 | awk '{print $7}'`
 echo "sleeping 4 minutts waiting for the disk to be ready"
 sleep 4m 
 aws ec2 attach-volume --volume-id $NFSVOL --instance-id $NFSNODE00ID --device /dev/sdb 
