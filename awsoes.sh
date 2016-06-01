@@ -357,25 +357,25 @@ echo "Creating var file"
 set | egrep 'KEYNAME|VPCID|CLUSTERID|INTERNETGWID|REGION|AZ|DMZSUBNETID|INTERNALSUBNETID|EXTERNALROUTETABLEID|MASTERSGID|INFRASGID|NODESGID|AMIID|MASTER0|NODE0|INFRANODE0|RHN|LAB0|DNSOPT' | sort > $DIR/vars.sh
 chmod 700 $DIR/vars.sh
 clear
-echo master00.${DOMAIN}
+echo master00.${DNSOPT}
 echo $MASTER00PUBLICIP
 
-echo nfs.${DOMAIN}
+echo nfs.${DNSOPT}
 echo $NFS00PUBLICIP
 
-echo infranode00.${DOMAIN}
+echo infranode00.${DNSOPT}
 echo $INFRANODE00PUBLICIP
 
-echo node00.${DOMAIN}
+echo node00.${DNSOPT}
 echo $NODE00PUBLICIP
 
-echo node01.${DOMAIN}
+echo node01.${DNSOPT}
 echo $NODE01PUBLICIP
 
-echo lab.${DOMAIN}
+echo lab.${DNSOPT}
 echo $LAB00PUBLICIP
 
-echo *.${DOMAIN}
+echo *.${DNSOPT}
 echo $INFRANODE00PUBLICIP
 
 echo "Create your DNS manually and point to the right IPs when that is done and dns is refreshed set low ttl, continue"
@@ -529,8 +529,8 @@ EOF
 scp -ti ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
 scp -ti ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DOMAIN},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${REGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${AWSREGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
 
 
 
