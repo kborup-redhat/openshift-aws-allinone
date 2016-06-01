@@ -356,6 +356,32 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 echo "Creating var file"
 set | egrep 'KEYNAME|VPCID|CLUSTERID|INTERNETGWID|REGION|AZ|DMZSUBNETID|INTERNALSUBNETID|EXTERNALROUTETABLEID|MASTERSGID|INFRASGID|NODESGID|AMIID|MASTER0|NODE0|INFRANODE0|RHN|LAB0|DNSOPT' | sort > $DIR/vars.sh
 chmod 700 $DIR/vars.sh
+clear
+echo master00.${DOMAIN}
+echo $MASTER00PUBLICIP
+
+echo nfs.${DOMAIN}
+echo $NFS00PUBLICIP
+
+echo infranode00.${DOMAIN}
+echo $INFRANODE00PUBLICIP
+
+echo node00.${DOMAIN}
+echo $NODE00PUBLICIP
+
+echo node01.${DOMAIN}
+echo $NODE01PUBLICIP
+
+echo lab.${DOMAIN}
+echo $LAB00PUBLICIP
+
+echo *.${DOMAIN}
+echo $INFRANODE00PUBLICIP
+
+echo "Create your DNS manually and point to the right IPs when that is done and dns is refreshed set low ttl, continue"
+read -n1 -r -p "Press space to continue..." key
+
+if [ "$key" = '' ]; then
 
 chmod 700 $DIR/ansibleinst.sh
 ./$DIR/ansibleinst.sh
@@ -392,49 +418,49 @@ ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo ansible-playbook
 #Router and Registry deployment
 echo "Deploying router and registry"
 
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace default -o yaml > namespace.default.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: env=infra' namespace.default.yaml ; oc replace -f namespace.default.yaml"
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
+#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace default -o yaml > namespace.default.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: region=infra' namespace.default.yaml ; oc replace -f namespace.default.yaml"
+#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
+#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
 
 
-cat << EOF > $DIR/pvconfig
-{
-  "apiVersion": "v1",
-  "kind": "PersistentVolume",
-  "metadata": {
-    "name": "registry-vol"
-  },
-  "spec": {
-    "capacity": {
-        "storage": "5Gi"
-        },
-    "accessModes": [ "ReadWriteMany" ],
-    "nfs": {
-        "path": "/nfsexport/registry-volume",
-        "server": "$NFS00PRIVATEIP"
-    }
-  }
-}
+#cat << EOF > $DIR/pvconfig
+#{
+#  "apiVersion": "v1",
+#  "kind": "PersistentVolume",
+#  "metadata": {
+#    "name": "registry-vol"
+#  },
+#  "spec": {
+#    "capacity": {
+#        "storage": "5Gi"
+#        },
+#    "accessModes": [ "ReadWriteMany" ],
+#    "nfs": {
+#        "path": "/nfsexport/registry-volume",
+#        "server": "$NFS00PRIVATEIP"
+#    }
+#  }
+#}
 
-EOF
+#EOF
 
-cat << EOF > $DIR/pvclaim
-{
-  "apiVersion": "v1",
-  "kind": "PersistentVolumeClaim",
-  "metadata": {
-    "name": "registry-claim"
-  },
-  "spec": {
-    "accessModes": [ "ReadWriteMany" ],
-    "resources": {
-      "requests": {
-        "storage": "5Gi"
-      }
-    }
-  }
-}
-EOF
+#cat << EOF > $DIR/pvclaim
+#{
+#  "apiVersion": "v1",
+#  "kind": "PersistentVolumeClaim",
+#  "metadata": {
+#    "name": "registry-claim"
+#  },
+#  "spec": {
+#    "accessModes": [ "ReadWriteMany" ],
+#    "resources": {
+#      "requests": {
+#        "storage": "5Gi"
+#      }
+#    }
+#  }
+#}
+#EOF
 
 cat pvclaim | ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP 'cat > pvclaim'
 cat pvconfig | ssh -ti ~/.ssh/${KEYNAME}.pem -i ec2-user $MASTER00PUBLICIP 'cat > pvconfig'
@@ -452,7 +478,7 @@ sudo htpasswd -b /etc/origin/openshift-passwd testuser flaf42mn
 ";
 done
 
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace openshift-infra -o yaml > openshift-infra.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: env=infra' openshift-infra.yaml ; oc replace -f openshift-infra.yaml"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace openshift-infra -o yaml > openshift-infra.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: region=infra' openshift-infra.yaml ; oc replace -f openshift-infra.yaml"
 
 cat << EOF > $DIR/sa.json
 apiVersion: v1
