@@ -1,4 +1,8 @@
 #!/bin/bash
+#exp; <kborup at redhat.com> 
+#Use at own risk, there are parts that does not work yet. 
+#Development started the 25th of May. 
+#Released under GPL. 
 
 script_name=$(basename "$0")
 usage ()
@@ -388,10 +392,10 @@ sh $DIR/ansibleinst.sh
 fi 
 #Adding nfs disks
 #tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP tar xvf -
+
 scp -i ~/.ssh/${KEYNAME}.pem $DIR/nfs.setup.sh ec2-user@$NFS00PUBLICIP:
 ssh -i ~/.ssh/${KEYNAME}.pem $NFS00PUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
-
-scp -i ~/.ssh/${KEYNAME}.pem ~/.ssh/${KEYNAME}.pem ec2-user@$LAB00PUBLICIP:.ssh/
+scp -i ~/.ssh/${KEYNAME}.pem ~/.ssh/${KEYNAME}.pem ec2-user@$LAB00PUBLICIP:/home/ec2-user/.ssh/
 
 cat << EOF > $DIR/config
 Host *
