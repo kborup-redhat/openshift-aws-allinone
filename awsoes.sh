@@ -176,10 +176,6 @@ AZ1=`echo $REGIONIDS | awk '{print $2}'`
 AZ2=`echo $REGIONIDS | awk '{print $4}'`
 AZ3=`echo $REGIONIDS | awk '{print $6}'`
 
-echo $AZ1 
-echo $AZ2 
-echo $AZ3
-echo $VPCID
 echo "Creating SubnetID"
 DMZSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.0/26  --availability-zone $AZ1 --query 'Subnet.SubnetId' --output text`
 aws ec2 create-tags --resource $DMZSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_DMZSubnet
@@ -216,7 +212,6 @@ echo "Creating firewalls as per version 3.1 will be updated before final release
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 22 --cidr 0.0.0.0/0
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --cidr 0.0.0.0/0
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 4789 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $NODESGID
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --source-group $NODESGID
 aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 8053 --source-group $NODESGID
 
@@ -246,6 +241,7 @@ aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --po
 aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 20048 --source-group $NODESGID
 aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 50825 --source-group $NODESGID
 aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 53248 --source-group $NODESGID
+aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 22 --cidr 0.0.0.0/0
 
 
 echo "Setting AWS RedHat Image Name"
@@ -253,7 +249,6 @@ AMIID=`echo $AWSRHID`
 
  
 MASTER00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
-echo $MASTER00ID
 aws ec2 create-tags --resource $MASTER00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
 MASTER00PUBLICDNS=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
 SHORTMASTER00PUBLICDNS=master00.${DNSOPT}
@@ -263,12 +258,13 @@ MASTER00PRIVATEIP=`aws ec2 describe-instances --instance-ids $MASTER00ID --query
 if [ $LPC == true ]; then
 echo "Creating MGMT Node"
 LAB00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+aws ec2 create-tags --resource $LAB00ID --tags --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_lab00 Key=clusterid,Value=${CLUSTERID}
 LAB00PUBLICDNS=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
 SHORTLAB00PUBLICDNS=lab.${DNSOPT}
 LAB00PUBLICIP=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 LAB00PRIVATEIP=`aws ec2 describe-instances --instance-ids $LAB00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 echo "sleeping while we wait for node to become ready its in the cloud!!"
-sleep 5m
+sleep 3m
 
 ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${LAB00PUBLICIP} "
 sudo sudo rm  /etc/yum.repos.d/*
@@ -355,8 +351,11 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 echo "Creating var file"
-set | egrep 'KEYNAME|VPCID|CLUSTERID|INTERNETGWID|REGIONIDS|AZ|DMZSUBNETID|INTERNALSUBNETID|EXTERNALROUTETABLEID|MASTERSGID|INFRASGID|NODESGID|AMIID|MASTER0|NODE0|INFRANODE0|RHN|LAB0|DNSOPT|' | sort > $DIR/vars.sh
 chmod 700 $DIR/vars.sh
+echo > $DIR/vars.sh
+
+for x in DNSOPT RHNUSER MASTER00PRIVATIP MASTER00PUBLICIP NODE00PRIVATEIP NODE00PUBLICIP NODE01PRIVATEIP NODE01PUBLICIP LAB00PUBLICIP LAB00PRIVATEIP INFRANODE00PUBLICIP INFRANODE00PRIVATEIP MASTER00PUBLICDNS NODE00PUBLICDNS NODE01PUBLICDNS LAB00PUBLICDNS INFRANODE00PUBLICDNS AWSREGION AZ1 NFS00PUBLICIP NFS00PUBLICDNS NFS00PRIVATEIP; do set | grep $x | sed s/x=$x// | grep -v ^$ | grep -v name  >> $DIR/vars.sh ; done
+
 clear
 echo master00.${DNSOPT}
 echo $MASTER00PUBLICIP
@@ -383,33 +382,31 @@ echo "Create your DNS manually and point to the right IPs when that is done and 
 read -n1 -r -p "Press space to continue..." key
 
 if [ "$key" = '' ]; then
-
-chmod 775 ansibleinst.sh
-sh ansibleinst.sh
+set -x
+chmod 775 $DIR/ansibleinst.sh
+sh $DIR/ansibleinst.sh
 fi 
 #Adding nfs disks
-tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP tar xvf -
-ssh -ti ~/.ssh/${KEYNAME}.pem $NFS00PUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
+#tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP tar xvf -
+scp -i ~/.ssh/${KEYNAME}.pem $DIR/nfs.setup.sh ec2-user@$NFS00PUBLICIP:
+ssh -i ~/.ssh/${KEYNAME}.pem $NFS00PUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
 
-if [ $LPC == true ]; then
-cd ~/.ssh/
-tar cvf - ${KEYNAME}.pem | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP tar xvf - -C .ssh/
+scp -i ~/.ssh/${KEYNAME}.pem ~/.ssh/${KEYNAME}.pem ec2-user@$LAB00PUBLICIP:.ssh/
 
-cat << EOF > ~/config
+cat << EOF > $DIR/config
 Host *
         IdentityFile ~/.ssh/${KEYNAME}.pem
   GSSAPIAuthentication no
         User ec2-user
 EOF
-fi
-cat ansible-hosts | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat > ansible-hosts'
-cat config | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat >> .ssh/config'
+scp -i ~/.ssh/${KEYNAME}.pem $DIR/ansible-hosts  ec2-user@$LAB00PUBLICIP:
+scp -i ~/.ssh/${KEYNAME}.pem $DIR/config  ec2-user@$LAB00PUBLICIP:./ssh/
 ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'chmod 600 .ssh/config'
 
 ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo yum -y install atomic-openshift-utils'
 
 ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'echo StrictHostKeyChecking no | sudo tee -a /etc/ssh/ssh_config'
-ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/hosts /etc/ansible/hosts'
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/ansible-hosts /etc/ansible/hosts'
 ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo cp /home/ec2-user/.ssh/* /root/.ssh/'
 ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo chmod 600 /root/.ssh/config '
 echo "Installing Your Environment"
@@ -424,7 +421,7 @@ ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
 
 
-cat << EOF > pvconfig
+cat << EOF > $DIR/pvconfig
 {
   "apiVersion": "v1",
   "kind": "PersistentVolume",
@@ -445,7 +442,7 @@ cat << EOF > pvconfig
 
 EOF
 
-cat << EOF > pvclaim
+cat << EOF > $DIR/pvclaim
 {
   "apiVersion": "v1",
   "kind": "PersistentVolumeClaim",
@@ -463,8 +460,8 @@ cat << EOF > pvclaim
 }
 EOF
 
-cat pvclaim | ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP 'cat > pvclaim'
-cat pvconfig | ssh -ti ~/.ssh/${KEYNAME}.pem -i ec2-user $MASTER00PUBLICIP 'cat > pvconfig'
+cat $DIR/pvclaim | ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP 'cat > pvclaim'
+cat $DIR/pvconfig | ssh -ti ~/.ssh/${KEYNAME}.pem -i ec2-user $MASTER00PUBLICIP 'cat > pvconfig'
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat pvconfig | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat pvclaim | oc create -f -"
 
@@ -496,7 +493,7 @@ ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat sa.json | 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer"
 ssh -it ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster ; sudo  oc secrets new metrics-deployer nothing=/dev/null"
 
-cat << EOF > metrics-vol
+cat << EOF > $DIR/metrics-vol
 {
   "apiVersion": "v1",
   "kind": "PersistentVolume",
@@ -516,7 +513,7 @@ cat << EOF > metrics-vol
 }
 EOF
 
-cat << EOF > logging-sa
+cat << EOF > $DIR/logging-sa
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -527,8 +524,8 @@ EOF
 
 
 
-scp -ti ~/.ssh/${KEYNAME}.pem metrics-vol  ec2-user@$MASTER00PUBLICIP:
-scp -ti ~/.ssh/${KEYNAME}.pem logging-sa ec2-user@$MASTER00PUBLICIP:
+scp -ti ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
+scp -ti ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${AWSREGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
