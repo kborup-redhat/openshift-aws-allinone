@@ -20,16 +20,16 @@ awsrhid = this is the ID from your AWS console LAUNCH Instance you can pick Red 
 awsregion = use one of the regions listed in amazon. aws ec2 describe-regions will list something like: 
 dnsopt = dnsname of router and servers could be cloud.pfy.dk cloud.redhat.com or cloud.google.com depending on what you own.
 
-REGIONS	ec2.eu-west-1.amazonaws.com	eu-west-1
-REGIONS	ec2.ap-southeast-1.amazonaws.com	ap-southeast-1
-REGIONS	ec2.ap-southeast-2.amazonaws.com	ap-southeast-2
-REGIONS	ec2.eu-central-1.amazonaws.com	eu-central-1
-REGIONS	ec2.ap-northeast-2.amazonaws.com	ap-northeast-2
-REGIONS	ec2.ap-northeast-1.amazonaws.com	ap-northeast-1
-REGIONS	ec2.us-east-1.amazonaws.com	us-east-1
-REGIONS	ec2.sa-east-1.amazonaws.com	sa-east-1
-REGIONS	ec2.us-west-1.amazonaws.com	us-west-1
-REGIONS	ec2.us-west-2.amazonaws.com	us-west-2
+#REGIONS	ec2.eu-west-1.amazonaws.com	eu-west-1
+#REGIONS	ec2.ap-southeast-1.amazonaws.com	ap-southeast-1
+#REGIONS	ec2.ap-southeast-2.amazonaws.com	ap-southeast-2
+#REGIONS	ec2.eu-central-1.amazonaws.com	eu-central-1
+#REGIONS	ec2.ap-northeast-2.amazonaws.com	ap-northeast-2
+#REGIONS	ec2.ap-northeast-1.amazonaws.com	ap-northeast-1
+#REGIONS	ec2.us-east-1.amazonaws.com	us-east-1
+#REGIONS	ec2.sa-east-1.amazonaws.com	sa-east-1
+#REGIONS	ec2.us-west-1.amazonaws.com	us-west-1
+#REGIONS	ec2.us-west-2.amazonaws.com	us-west-2
 
 
 EOF
@@ -120,7 +120,7 @@ fi
 
 echo "Please enter you password for RHN";
 stty -echo
-read RHN;
+read RHPASS;
 stty echo
 
 if [ -z "$RHPOOL" ]; then 
@@ -333,7 +333,7 @@ sudo subscription-manager attach --pool=${RHPOOL}
 sudo subscription-manager repos --disable='*'
 sudo subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-server-ose-3.2-rpms"
 sudo yum update -y
-reboot
+sudo reboot
 " ; done
 echo "sleeping until all nodes are back up"
 sleep 5m
@@ -355,7 +355,7 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
 done
 DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 echo "Creating var file"
-set | egrep 'KEYNAME|VPCID|CLUSTERID|INTERNETGWID|REGION|AZ|DMZSUBNETID|INTERNALSUBNETID|EXTERNALROUTETABLEID|MASTERSGID|INFRASGID|NODESGID|AMIID|MASTER0|NODE0|INFRANODE0|RHN|LAB0|DNSOPT' | sort > $DIR/vars.sh
+set | egrep 'KEYNAME|VPCID|CLUSTERID|INTERNETGWID|REGIONIDS|AZ|DMZSUBNETID|INTERNALSUBNETID|EXTERNALROUTETABLEID|MASTERSGID|INFRASGID|NODESGID|AMIID|MASTER0|NODE0|INFRANODE0|RHN|LAB0|DNSOPT|' | sort > $DIR/vars.sh
 chmod 700 $DIR/vars.sh
 clear
 echo master00.${DNSOPT}
@@ -384,12 +384,12 @@ read -n1 -r -p "Press space to continue..." key
 
 if [ "$key" = '' ]; then
 
-chmod 700 $DIR/ansibleinst.sh
-./$DIR/ansibleinst.sh
-
+chmod 775 ansibleinst.sh
+sh ansibleinst.sh
+fi 
 #Adding nfs disks
-tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFSPUBLICIP tar xvf -
-ssh -ti ~/.ssh/${KEYNAME}.pem $NFSPUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
+tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP tar xvf -
+ssh -ti ~/.ssh/${KEYNAME}.pem $NFS00PUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
 
 if [ $LPC == true ]; then
 cd ~/.ssh/
@@ -401,10 +401,10 @@ Host *
   GSSAPIAuthentication no
         User ec2-user
 EOF
-
-cat $DIR/ansible-hosts | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat > ansible-hosts'
-cat ~/config | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat >> .ssh/config'
-ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'chmod 600 .ssh/config'
+fi
+cat ansible-hosts | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat > ansible-hosts'
+cat config | ssh -i  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'cat >> .ssh/config'
+ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'chmod 600 .ssh/config'
 
 ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo yum -y install atomic-openshift-utils'
 
@@ -419,49 +419,49 @@ ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo ansible-playbook
 #Router and Registry deployment
 echo "Deploying router and registry"
 
-#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace default -o yaml > namespace.default.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: region=infra' namespace.default.yaml ; oc replace -f namespace.default.yaml"
-#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
-#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace default -o yaml > namespace.default.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: region=infra' namespace.default.yaml ; oc replace -f namespace.default.yaml"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
 
 
-#cat << EOF > $DIR/pvconfig
-#{
-#  "apiVersion": "v1",
-#  "kind": "PersistentVolume",
-#  "metadata": {
-#    "name": "registry-vol"
-#  },
-#  "spec": {
-#    "capacity": {
-#        "storage": "5Gi"
-#        },
-#    "accessModes": [ "ReadWriteMany" ],
-#    "nfs": {
-#        "path": "/nfsexport/registry-volume",
-#        "server": "$NFS00PRIVATEIP"
-#    }
-#  }
-#}
+cat << EOF > pvconfig
+{
+  "apiVersion": "v1",
+  "kind": "PersistentVolume",
+  "metadata": {
+    "name": "registry-vol"
+  },
+  "spec": {
+    "capacity": {
+        "storage": "5Gi"
+        },
+    "accessModes": [ "ReadWriteMany" ],
+    "nfs": {
+        "path": "/nfsexport/registry-volume",
+        "server": "$NFS00PRIVATEIP"
+    }
+  }
+}
 
-#EOF
+EOF
 
-#cat << EOF > $DIR/pvclaim
-#{
-#  "apiVersion": "v1",
-#  "kind": "PersistentVolumeClaim",
-#  "metadata": {
-#    "name": "registry-claim"
-#  },
-#  "spec": {
-#    "accessModes": [ "ReadWriteMany" ],
-#    "resources": {
-#      "requests": {
-#        "storage": "5Gi"
-#      }
-#    }
-#  }
-#}
-#EOF
+cat << EOF > pvclaim
+{
+  "apiVersion": "v1",
+  "kind": "PersistentVolumeClaim",
+  "metadata": {
+    "name": "registry-claim"
+  },
+  "spec": {
+    "accessModes": [ "ReadWriteMany" ],
+    "resources": {
+      "requests": {
+        "storage": "5Gi"
+      }
+    }
+  }
+}
+EOF
 
 cat pvclaim | ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP 'cat > pvclaim'
 cat pvconfig | ssh -ti ~/.ssh/${KEYNAME}.pem -i ec2-user $MASTER00PUBLICIP 'cat > pvconfig'
@@ -490,13 +490,13 @@ secrets:
 - name: metrics-deployer
 EOF
 
-scp -ti ~/.ssh/${KEYNAME}.pem $DIR/sa.json  ec2-user@$MASTER00PUBLICIP: 
+scp -ti ~/.ssh/${KEYNAME}.pem sa.json  ec2-user@$MASTER00PUBLICIP: 
 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat sa.json | oc create -f -" 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer"
 ssh -it ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster ; sudo  oc secrets new metrics-deployer nothing=/dev/null"
 
-cat << EOF > $DIR/metrics-vol
+cat << EOF > metrics-vol
 {
   "apiVersion": "v1",
   "kind": "PersistentVolume",
@@ -516,7 +516,7 @@ cat << EOF > $DIR/metrics-vol
 }
 EOF
 
-cat << EOF > $DIR/logging-sa
+cat << EOF > logging-sa
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -527,8 +527,8 @@ EOF
 
 
 
-scp -ti ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
-scp -ti ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
+scp -ti ~/.ssh/${KEYNAME}.pem metrics-vol  ec2-user@$MASTER00PUBLICIP:
+scp -ti ~/.ssh/${KEYNAME}.pem logging-sa ec2-user@$MASTER00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${AWSREGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
@@ -537,7 +537,3 @@ ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-proje
 
 
 
-else 
-echo "Sorry we only do this with a mgmt host at the moment kinda tricked you there dont worry we just made the script ready for the option"
-exit 1
-fi
