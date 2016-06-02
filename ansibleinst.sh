@@ -5,8 +5,9 @@ while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symli
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
 done
 DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
-./$DIR/vars.sh
-cat << EOF > $DIR/ansible-hosts
+
+source $DIR/vars.sh
+cat << EOF > ansible-hosts
 # Create an OSEv3 group that contains the master, nodes, etcd, and lb groups.
 [OSEv3:children]
 masters
@@ -29,7 +30,7 @@ osm_use_cockpit=false
 
 
 # default subdomain to use for exposed routes
-openshift_master_default_subdomain=${DNSOPT}
+openshift_master_default_subdomain=$DNSOPT
 
 # default project node selector
 osm_default_node_selector='env=dev'
@@ -56,23 +57,23 @@ openshift_hosted_router_replicas=1
 openshift_registry_selector='region=infra'
 
 # Configure metricsPublicURL in the master config for cluster metrics
-openshift_master_metrics_public_url=https://hawkular-metrics.${DNSOPT}
+openshift_master_metrics_public_url=https://hawkular-metrics.$DNSOPT
 
 # Configure loggingPublicURL in the master config for aggregate logging
-openshift_master_logging_public_url=https://kibana.${DNSOPT}
+openshift_master_logging_public_url=https://kibana.$DNSOPT
 
 # host group for masters
 [masters]
-master00.${DNSOPT}
+master00.$DNSOPT
 # host group for etcd
 [etcd]
-master00.${DNSOPT}
+master00.$DNSOPT
 
 # host group for nodes, includes region info
 [nodes]
-master00.${DNSOPT} openshift_public_hostname="master00.${DNSOPT}" " openshift_schedulable=False openshift_node_labels="{'name': 'master00'}"
-infranode00.${DNSOPT}  openshift_public_hostname="infranode00.${DNSOPT}" " openshift_node_labels="{'name': 'infranode00','region': '${AWSREGION}', 'zone': '${AZ1}', 'region': 'infra'}"
-node00.${DNSOPT}  openshift_node_labels="{'name': 'node00','region': '${AWSREGION}', 'zone': '${AZ1}', 'env': 'dev'}"
-node01.${DNSOPT}  openshift_node_labels="{'name': 'node01','region': '${AWSREGION}', 'zone': '${AZ1}', 'env': 'dev'}"
+master00.$DNSOPT openshift_public_hostname="master00.$DNSOPT" " openshift_schedulable=False openshift_node_labels="{'name': 'master00'}"
+infranode00.$DNSOPT  openshift_public_hostname="infranode00.$DNSOPT" " openshift_node_labels="{'name': 'infranode00','region': '$AWSREGION', 'zone': '$AZ1', 'region': 'infra'}"
+node00.$DNSOPT  openshift_node_labels="{'name': 'node00','region': '$AWSREGION', 'zone': '$AZ1', 'env': 'dev'}"
+node01.$DNSOPT  openshift_node_labels="{'name': 'node01','region': '$AWSREGION', 'zone': '$AZ1', 'env': 'dev'}"
 
 EOF
