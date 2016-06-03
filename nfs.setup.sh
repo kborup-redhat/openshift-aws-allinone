@@ -20,9 +20,12 @@ mkfs.xfs /dev/xvdb1
 mount /dev/xvdb1 /nfsexport
 echo "/dev/xvdb1 /nfsexport xfs defaults 0 0" >>/etc/fstab
 echo "Creating mounts for Casandra and Hawkular"
-mkdir /nfsexport/{cassandra-volume,reigstry-volume}
+mkdir /nfsexport/{cassandra-volume,registry-volume}
+echo "/nfsexport/registry-volume *(rw,root_squash)" >> /etc/exports
+echo "/nfsexport/cassandra-volume *(rw,root_squash)" >> /etc/exports
 chmod -R 777 /nfsexport/*
 chown -R nfsnobody:nfsnobody /nfsexport
+
 
 exportfs -a 
 
