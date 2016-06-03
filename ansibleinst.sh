@@ -33,7 +33,8 @@ osm_use_cockpit=false
 openshift_master_default_subdomain=$DNSOPT
 
 # default project node selector
-osm_default_node_selector='env=dev'
+osm_default_node_selector='region=infra'
+openshift_registry_selector='region=infra'
 
 # Router selector (optional)
 # Router will only be created if nodes matching this label are present.
@@ -71,8 +72,8 @@ master00.$DNSOPT
 
 # host group for nodes, includes region info
 [nodes]
-master00.$DNSOPT openshift_public_hostname="master00.$DNSOPT" " openshift_schedulable=False openshift_node_labels="{'name': 'master00'}"
-infranode00.$DNSOPT  openshift_public_hostname="infranode00.$DNSOPT" " openshift_node_labels="{'name': 'infranode00','region': '$AWSREGION', 'zone': '$AZ1', 'region': 'infra'}"
+master00.$DNSOPT openshift_public_hostname="master00.$DNSOPT"  openshift_schedulable=False openshift_node_labels="{'name': 'master00'}"
+infranode00.$DNSOPT  openshift_public_hostname="infranode00.$DNSOPT"  openshift_node_labels="{'name': 'infranode00','region': '$AWSREGION', 'zone': '$AZ1', 'region': 'infra'}"
 node00.$DNSOPT  openshift_node_labels="{'name': 'node00','region': '$AWSREGION', 'zone': '$AZ1', 'env': 'dev'}"
 node01.$DNSOPT  openshift_node_labels="{'name': 'node01','region': '$AWSREGION', 'zone': '$AZ1', 'env': 'dev'}"
 
