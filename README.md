@@ -64,3 +64,7 @@ awsoes.sh --rhuser <RHN USERNAME> --rhpool=<RHNPOOLID>  --cluster false(pick fal
 That is it your aws environment will now spin up this will take some time.
 If it hangs during a server update (patch) try and press enter, it could simply be a glitch in your ssh connection. 
 
+Currently this will spin up.
+One NFS server, One SSH Master server where the ansible playbook will run from, One Master, One Infranode (internet traffic) and Two nodes for pods. 
+
+This is a demo environment so there will not be alot of space for pods, we might have to change this later or make it a setup option. 
