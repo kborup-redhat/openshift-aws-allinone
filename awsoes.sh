@@ -13,13 +13,12 @@ usage $script_name OPTIONS
 Create an AWS environment running openshift 3.2 under RHEL 7.2
 
 EXAMPLE:
-$script_name --rhuser <username> --rhpool <poolid> --cluster <true / false> --lpc <true / false> --awsrhid <rhelImageId> --awsregion <Aws region> --dnsopt=dnsname
+$script_name --rhuser <username> --rhpool <poolid> --cluster <true / false> --awsrhid <rhelImageId> --awsregion <Aws region> --dnsopt=dnsname
 OPTIONS EXPLAINED: 
 rhuser = your redhat user it
 rhpass = your redhat password 
 rhpool = from from "subscription-manager list --avalibale --all" (take the repo with openshift in it)
 cluster = do you want a clustered AWS setup with loadbalancer, multiple infranodes and routes then this is the option for you (currently under construction)
-lpc = Do you want to have a mgmt server where all commands can be run from, then this is the option for you otherwise i will run it all from you local computer.
 awsrhid = this is the ID from your AWS console LAUNCH Instance you can pick Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type - ami-775e4f16 (take the ami- number and insert here)
 awsregion = use one of the regions listed in amazon. aws ec2 describe-regions will list something like: 
 dnsopt = dnsname of router and servers could be cloud.pfy.dk cloud.redhat.com or cloud.google.com depending on what you own.
@@ -81,7 +80,7 @@ exit 1
 }
 
 
-OPTIONS=`getopt -o h -l help -l rhuser: -l rhpool: -l cluster: -l clusterid: -l lpc: -l awsrhid: -l awsregion: -l dnsopt: -- "$@"`
+OPTIONS=`getopt -o h -l help -l rhuser: -l rhpool: -l cluster: -l clusterid: -l awsrhid: -l awsregion: -l dnsopt: -- "$@"`
 
 if [ $? != 0 ]; then
         usage
@@ -92,7 +91,6 @@ RHPASS=""
 RHPOOL=""
 CLUSTER=""
 CLUSTERID=""
-LPC=""
 AWSRHID=""
 AWSREGION=""
 DNSOPT=""
@@ -106,7 +104,6 @@ case "$1" in
         --rhpool) RHPOOL=$2; shift 2;;
 	--cluster) CLUSTER=$2; shift 2;;
 	--clusterid) CLUSTERID=$2; shift 2;;
-	--lpc) LPC=$2; shift 2;;
 	--awsrhid) AWSRHID=$2; shift 2;;
 	--awsregion) AWSREGION=$2; shift 2;;
 	--dnsopt) DNSOPT=$2; shift 2;;
@@ -127,22 +124,7 @@ stty -echo
 read RHPASS;
 stty echo
 
-if [ -z "$RHPOOL" ]; then 
-	usage
-fi
-if [ -z "$CLUSTER" ]; then
-	usage
-fi
-if [ -z "$CLUSTERID" ]; then
-	usage
-fi
-if [ -z "$LPC" ]; then
-	usage
-fi
-if [ -z "$AWSRHID" ]; then
-	usage
-fi
-if [ -z "$AWSREGION" ]; then
+if [ -z "$RHPOOL|$CLUSTER|$CLUSTERID|$AWSRHID|$AWSREGION|$DNSOPT" ]; then 
 	usage
 fi
 
@@ -251,7 +233,8 @@ aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --po
 echo "Setting AWS RedHat Image Name"
 AMIID=`echo $AWSRHID`
 
- 
+if [ $CLUSTER == True|true|TRUE ]; then
+echo "Creating Multiple cluster nodes"
 MASTER00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 aws ec2 create-tags --resource $MASTER00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
 MASTER00PUBLICDNS=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
@@ -259,7 +242,41 @@ SHORTMASTER00PUBLICDNS=master00.${DNSOPT}
 MASTER00PUBLICIP=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 MASTER00PRIVATEIP=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 
-if [ $LPC == true ]; then
+MASTER01ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+aws ec2 create-tags --resource $MASTER01ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
+MASTER01PUBLICDNS=`aws ec2 describe-instances --instance-ids $MASTER01ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTMASTER01PUBLICDNS=master01.${DNSOPT}
+MASTER01PUBLICIP=`aws ec2 describe-instances --instance-ids $MASTER01ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+MASTER01PRIVATEIP=`aws ec2 describe-instances --instance-ids $MASTER01ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+
+MASTER02ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+aws ec2 create-tags --resource $MASTER02ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
+MASTER02PUBLICDNS=`aws ec2 describe-instances --instance-ids $MASTER02ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTMASTER02PUBLICDNS=master02.${DNSOPT}
+MASTER02PUBLICIP=`aws ec2 describe-instances --instance-ids $MASTER02ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+MASTER02PRIVATEIP=`aws ec2 describe-instances --instance-ids $MASTER02ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+
+LOAD00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+aws ec2 create-tags --resource $LOAD00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
+LOAD00PUBLICDNS=`aws ec2 describe-instances --instance-ids $LOAD00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTLOAD00PUBLICDNS=loadbalancer.${DNSOPT}
+LOAD00PUBLICIP=`aws ec2 describe-instances --instance-ids $LOAD00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+LOAD00PRIVATEIP=`aws ec2 describe-instances --instance-ids $LOAD00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+
+
+
+else
+
+echo "Creating single master node" 
+MASTER00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+aws ec2 create-tags --resource $MASTER00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
+MASTER00PUBLICDNS=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTMASTER00PUBLICDNS=master00.${DNSOPT}
+MASTER00PUBLICIP=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+MASTER00PRIVATEIP=`aws ec2 describe-instances --instance-ids $MASTER00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+fi
+
+
 echo "Creating MGMT Node"
 LAB00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 aws ec2 create-tags --resource $LAB00ID --tags --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_lab00 Key=clusterid,Value=${CLUSTERID}
@@ -279,8 +296,7 @@ sudo subscription-manager repos --enable=rhel-7-server-rpms --enable=rhel-7-serv
 sudo yum update -y
 " ; 
 
-fi
-
+ 
 echo "Creating nodes"
 INSTANCESTEMP=`aws ec2 run-instances --image-id $AMIID  --count 2 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NODESGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 
@@ -301,6 +317,26 @@ SHORTNODE01PUBLICDNS=node01.${DNSOPT}
 NODE01PRIVATEIP=`aws ec2 describe-instances --instance-ids $NODE01ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 NODE01PUBLICIP=`aws ec2 describe-instances --instance-ids $NODE01ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 
+if [ $CLUSTER == True|true|TRUE ]; then 
+echo "Creating two infranodes"
+INFRATEMP=`aws ec2 run-instances --image-id $AMIID  --count 2 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NODESGID $INFRASGID--subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
+export INFRA00ID=`echo $INSTANCESTEMP | awk '{print $1}'`
+export INFRA01ID=`echo $INSTANCESTEMP | awk '{print $2}'`
+aws ec2 create-tags --resource $INFRA00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_infranode00 Key=clusterid,Value=${CLUSTERID}
+aws ec2 create-tags --resource $INFRA01ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_infranode01 Key=clusterid,Value=${CLUSTERID}
+
+INFRA00PUBLICDNS=`aws ec2 describe-instances --instance-ids $INFRA00ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTINFRA00PUBLICDNS=infranode00.${DNSOPT}
+INFRA00PRIVATEIP=`aws ec2 describe-instances --instance-ids $INFRA00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+INFRA00PUBLICIP=`aws ec2 describe-instances --instance-ids $INFRA00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+
+INFRA01PUBLICDNS=`aws ec2 describe-instances --instance-ids $INFRA01ID --query Reservations[*].Instances[*].[PublicDnsName] --output text`
+SHORTINFRA01PUBLICDNS=infranode01.${DNSOPT}
+INFRA01PRIVATEIP=`aws ec2 describe-instances --instance-ids $INFRA01ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
+INFRA01PUBLICIP=`aws ec2 describe-instances --instance-ids $INFRA01ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+
+else
+
 echo "Creating Infra Node"
 INFRANODE00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $INFRASGID $NODESGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 aws ec2 create-tags --resource $INFRANODE00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_infranode00 Key=clusterid,Value=${CLUSTERID}
@@ -309,6 +345,7 @@ INFRANODE00PUBLICDNS=`aws ec2 describe-instances --instance-ids $INFRANODE00ID -
 SHORTINFRANODE00PUBLICDNS=infranode00.${DNSOPT}
 INFRANODE00PRIVATEIP=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 INFRANODE00PUBLICIP=`aws ec2 describe-instances --instance-ids $INFRANODE00ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
+fi
 
 echo "Creating NFS Node and Adding an extra disk"
 
@@ -322,30 +359,34 @@ echo "sleeping 4 minutts waiting for the disk to be ready"
 sleep 4m 
 aws ec2 attach-volume --volume-id $NFSVOL --instance-id $NFSNODE00ID --device /dev/sdb 
 
+if [ $CLUSTER == True|true|TRUE ]; then 
+echo "Setting up RHN on nodes"
+nodes="${MASTER00PUBLICDNS} ${MASTER01PUBLICDNS} ${MASTER02PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS} ${INFRA00PUBLICDNS} ${INFRA01PUBLICDNS} ${LOAD00PUBLICDNS}"
+else
+
 echo "Setting up RHN on nodes"
 nodes="${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS}"
+fi 
 
-for node in ${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS} ; do ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${node} "
-echo Configure the Repositories on ${node}
+for node in $nodes ; do ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${node} "
+echo Configure the Repositories on ${node} if any of this looks to hang press ENTER
 sudo sudo rm  /etc/yum.repos.d/*
 sudo subscription-manager register --username=${RHUSER} --password=${RHPASS}
 sudo subscription-manager attach --pool=${RHPOOL}
 sudo subscription-manager repos --disable='*'
 sudo subscription-manager repos --enable="rhel-7-server-rpms" --enable="rhel-7-server-extras-rpms" --enable="rhel-7-server-ose-3.2-rpms"
+sudo yum -y install "wget git net-tools bind-utils iptables-services bridge-utils bash-completion"
 sudo yum update -y
+echo Installing Docker on ${node}
+sudo yum install docker -y
+sudo cp /etc/sysconfig/docker /etc/sysconfig/docker.original
+sudo sed -i 's/--selinux-enabled/--selinux-enabled --insecure-registry 172.30.0.0\/0/' /etc/sysconfig/docker 
 sudo reboot
 " ; done
 echo "sleeping until all nodes are back up"
 sleep 5m
-ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${MASTER00PUBLICIP} "sudo yum -y install wget git net-tools bind-utils iptables-services bridge-utils bash-completion"
 
-echo "Installing docker"
-for node in  ${MASTER00PUBLICDNS} ${INFRANODE00PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS} ; do ssh -ti ~/.ssh/${KEYNAME}.pem ec2-user@${node} "
-echo Installing Docker on ${node}
-sudo yum install docker -y
-sudo cp /etc/sysconfig/docker /etc/sysconfig/docker.original
-sudo sed -i 's/--selinux-enabled/--selinux-enabled --insecure-registry 172.30.0.0\/0/' /etc/sysconfig/docker " ;
-done
+
 
 SOURCE="${BASH_SOURCE[0]}"
 while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
@@ -358,7 +399,7 @@ echo "Creating var file"
 chmod 700 $DIR/vars.sh
 echo > $DIR/vars.sh
 
-for x in DNSOPT RHNUSER MASTER00PRIVATIP MASTER00PUBLICIP NODE00PRIVATEIP NODE00PUBLICIP NODE01PRIVATEIP NODE01PUBLICIP LAB00PUBLICIP LAB00PRIVATEIP INFRANODE00PUBLICIP INFRANODE00PRIVATEIP MASTER00PUBLICDNS NODE00PUBLICDNS NODE01PUBLICDNS LAB00PUBLICDNS INFRANODE00PUBLICDNS AWSREGION AZ1 NFS00PUBLICIP NFS00PUBLICDNS NFS00PRIVATEIP; do set | grep $x | sed s/x=$x// | grep -v ^$ | grep -v name  >> $DIR/vars.sh ; done
+for x in DNSOPT RHNUSER MASTER00PRIVATIP MASTER00PUBLICIP NODE00PRIVATEIP NODE00PUBLICIP NODE01PRIVATEIP NODE01PUBLICIP LAB00PUBLICIP LAB00PRIVATEIP INFRANODE00PUBLICIP INFRANODE00PRIVATEIP MASTER00PUBLICDNS NODE00PUBLICDNS NODE01PUBLICDNS LAB00PUBLICDNS INFRANODE00PUBLICDNS AWSREGION AZ1 NFS00PUBLICIP NFS00PUBLICDNS NFS00PRIVATEIP MASTER01PUBLICDNS MASTER01PUBLICIP MASTER01PRIVATEIP MASTER02PUBLICDNS MASTER02PRIVATEIP MASTER02PUBLICIP INFRA00PUBLICDNS INFRA00PRIVATEIP INFRA00PUBLICIP INFRA01PUBLICDNS INFRA01PRIVATEIP INFRA01PUBLICIP LOAD00PUBLICDNS LOAD00PRIVATEIP LOAD00PUBLICIP ; do set | grep $x | sed s/x=$x// | grep -v ^$ | grep -v name  >> $DIR/vars.sh ; done
 
 clear
 echo master00.${DNSOPT}
@@ -382,13 +423,33 @@ echo $LAB00PUBLICIP
 echo *.${DNSOPT}
 echo $INFRANODE00PUBLICIP
 
+if [ $CLUSTER == true|TRUE|true ]; then
+echo master01.${DNSOPT}
+echo $MASTER01PUBLICIP
+
+echo master02.${DNSOPT}
+echo $MASTER02PUBLICIP
+
+echo infranode01.${DNSOPT}
+echo $INFRA01PUBLICIP
+
+echo loadbalancer.${DNSOPT}
+echo $LOAD00PUBLICIP
+fi
+
+
 echo "Create your DNS manually and point to the right IPs when that is done and dns is refreshed set low ttl, continue"
 read -n1 -r -p "Press space to continue..." key
 
 if [ "$key" = '' ]; then
 set -x
-chmod 775 $DIR/ansibleinst.sh
-sh $DIR/ansibleinst.sh
+if [ $CLUSTER == true|True|TRUE ] ; then 
+chmod 755 $DIR/ansible-hosts-cluster.sh
+sh $DIR/ansible-hosts-cluster.sh
+else
+
+chmod 775 $DIR/ansible-hosts-standalone.sh
+sh $DIR/ansible-hosts-standalone.sh
 fi 
 #Adding nfs disks
 #tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP tar xvf -
