@@ -13,7 +13,7 @@ usage $script_name OPTIONS
 Create an AWS environment running openshift 3.2 under RHEL 7.2
 
 EXAMPLE:
-$script_name --rhuser <username> --rhpool <poolid> --cluster <true / false> --awsrhid <rhelImageId> --awsregion <Aws region> --dnsopt=dnsname
+$script_name --rhuser <username> --rhpool <poolid> --cluster true / false> --awsrhid <rhelImageId> --awsregion <Aws region> --dnsopt=dnsname
 OPTIONS EXPLAINED: 
 rhuser = your redhat user it
 rhpass = your redhat password 
@@ -233,7 +233,7 @@ aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --po
 echo "Setting AWS RedHat Image Name"
 AMIID=`echo $AWSRHID`
 
-if [ $CLUSTER == True|true|TRUE ]; then
+if [ $CLUSTER = true ]; then
 echo "Creating Multiple cluster nodes"
 MASTER00ID=`aws ec2 run-instances --image-id $AMIID  --count 1 --instance-type t2.small --key-name $KEYNAME --security-group-ids $MASTERSGID --subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 aws ec2 create-tags --resource $MASTER00ID --tags Key=deployment,Value=paas Key=type,Value=instance Key=Name,Value=${CLUSTERID}_master00 Key=clusterid,Value=${CLUSTERID}
@@ -317,7 +317,7 @@ SHORTNODE01PUBLICDNS=node01.${DNSOPT}
 NODE01PRIVATEIP=`aws ec2 describe-instances --instance-ids $NODE01ID --query Reservations[*].Instances[*].[PrivateIpAddress] --output text`
 NODE01PUBLICIP=`aws ec2 describe-instances --instance-ids $NODE01ID --query Reservations[*].Instances[*].[PublicIpAddress] --output text`
 
-if [ $CLUSTER == True|true|TRUE ]; then 
+if [ $CLUSTER = true ]; then 
 echo "Creating two infranodes"
 INFRATEMP=`aws ec2 run-instances --image-id $AMIID  --count 2 --instance-type t2.small --key-name ${KEYNAME} --security-group-ids $NODESGID $INFRASGID--subnet-id $DMZSUBNETID --associate-public-ip-address --query Instances[*].InstanceId --output text`
 export INFRA00ID=`echo $INSTANCESTEMP | awk '{print $1}'`
@@ -359,7 +359,7 @@ echo "sleeping 4 minutts waiting for the disk to be ready"
 sleep 4m 
 aws ec2 attach-volume --volume-id $NFSVOL --instance-id $NFSNODE00ID --device /dev/sdb 
 
-if [ $CLUSTER == True|true|TRUE ]; then 
+if [ $CLUSTER = true ]; then 
 echo "Setting up RHN on nodes"
 nodes="${MASTER00PUBLICDNS} ${MASTER01PUBLICDNS} ${MASTER02PUBLICDNS} ${NODE00PUBLICDNS} ${NODE01PUBLICDNS} ${INFRA00PUBLICDNS} ${INFRA01PUBLICDNS} ${LOAD00PUBLICDNS}"
 else
@@ -423,7 +423,7 @@ echo $LAB00PUBLICIP
 echo *.${DNSOPT}
 echo $INFRANODE00PUBLICIP
 
-if [ $CLUSTER == true|TRUE|true ]; then
+if [ $CLUSTER = true ]; then
 echo master01.${DNSOPT}
 echo $MASTER01PUBLICIP
 
@@ -443,7 +443,7 @@ read -n1 -r -p "Press space to continue..." key
 
 if [ "$key" = '' ]; then
 set -x
-if [ $CLUSTER == true|True|TRUE ] ; then 
+if [ $CLUSTER = true ] ; then 
 chmod 755 $DIR/ansible-hosts-cluster.sh
 sh $DIR/ansible-hosts-cluster.sh
 else
