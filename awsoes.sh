@@ -712,7 +712,7 @@ EOF
 
 scp -i ~/.ssh/${KEYNAME}.pem sa.json  ec2-user@$MASTER00PUBLICIP: 
 
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat sa.json | oc create -f -" 
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat /home/ec2-user/sa.json | oc create -f -" 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster ; sudo  oc secrets new metrics-deployer nothing=/dev/null"
 
@@ -750,7 +750,7 @@ EOF
 scp -i ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
 scp -i ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
-ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${AWSREGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oc process -f metrics-deployer.yaml -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},CASSANDRA_PV_SIZE=10Gi |  oc create -f -"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=infra ; sudo oc project logging ;  sudo oc secrets new logging-deployer nothing=/dev/null ; sudo cat logging-sa | oc create -f - ; sudo oc policy add-role-to-user edit system:serviceaccount:logging:logging-deployer ; sudo oadm policy add-scc-to-user privileged system:serviceaccount:logging:aggregated-logging-fluentd ; sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:logging:aggregated-logging-fluentd ; sudo oc process logging-deployer-template -n openshift -v KIBANA_HOSTNAME=kibana.${DNSOPT} -v ES_CLUSTER_SIZE=1 -v ES_INSTANCE_RAM=1024M -v PUBLIC_MASTER_URL=https://master00.${DNSOPT}:8443 -v ENABLE_OPS_CLUSTER=false -v IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/ | oc create -f - ; sudo oc get dc `oc get dc | grep logging-es | awk '{print $1}'` -o json | sed '/containers/i "nodeSelector": { "env": "dev" },' | oc replace -f -"
 
 
