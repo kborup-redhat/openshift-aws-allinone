@@ -541,7 +541,7 @@ cat << EOF > wildcard.json
         {
             "Action": "CREATE",
             "ResourceRecordSet": {
-                "Name": "\*.${DNSOPT}.",
+                "Name": "*.${DNSOPT}.",
                 "Type": "A",
                 "TTL": 30,
                 "ResourceRecords": [
@@ -582,6 +582,9 @@ echo $LAB00PUBLICIP
 
 echo *.${DNSOPT}
 echo $INFRANODE00PUBLICIP
+echo "Create your DNS manually and point to the right IPs when that is done and dns is refreshed set low ttl, continue"
+read -n1 -r -p "Press space to continue..." key
+
 fi
 
 if [ $CLUSTER = true ]; then
@@ -596,10 +599,9 @@ echo $INFRA01PUBLICIP
 
 echo loadbalancer.${DNSOPT}
 echo $LOAD00PUBLICIP
-fi
-
 echo "Create your DNS manually and point to the right IPs when that is done and dns is refreshed set low ttl, continue"
 read -n1 -r -p "Press space to continue..." key
+fi
 
 if [ $CLUSTER = true ] ; then 
 chmod 755 $DIR/ansible-hosts-cluster.sh
