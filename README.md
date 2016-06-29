@@ -56,10 +56,19 @@ awsregion = use one of the regions listed
 
 dnsopt = dnsname of router and servers could be cloud.pfy.dk cloud.rhcloud.dk or cloud.google.com depending on what you own.
 
+awsdns = true / false , if set to true you will use route53 on AWS, otherwise you will need to have your own dns server setup, you will however need a domain on AWS aswell to use this feature.
+
+awsdnszone = <ZONEID> you get this id from you route53 UI or trough command line it should be the ID of the domain you are using in dnsopt.
+
 
 
 == 
-awsoes.sh --rhuser <RHN USERNAME> --rhpool=<RHNPOOLID>  --cluster false(pick false here cluster is not there yet) --clusterid <Name of your setup>  --awsrhid <AWS Image name> --awsregion <AWS Region> --dnsopt=<DNS DOMAIN>
+awsoes.sh --rhuser <RHN USERNAME> --rhpool=<RHNPOOLID>  --cluster <true/false> --clusterid <Name of your setup>  --awsrhid <AWS Image name> --awsregion <AWS Region> --dnsopt=<DNS DOMAIN> --awsdns <true/false> --awsdnszone= <AWS ZONE ID>
+
+EXAMPLE: 
+
+./awsoes.sh --rhuser my@email.com --rhpool=888sd88625557899765454678161625 --cluster false --clusterid rhnew --awsrhid ami-7782jjs6 --awsregion us-west-2 --dnsopt=nerdheaven.io --awsdns=true --awsdnszone=ZHSSADHHJA39
+
 
 That is it your aws environment will now spin up this will take some time.
 If it hangs during a server update (patch) try and press enter, it could simply be a glitch in your ssh connection. 
