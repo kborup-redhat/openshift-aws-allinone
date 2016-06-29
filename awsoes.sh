@@ -602,10 +602,6 @@ fi
 echo "Create your DNS manually and point to the right IPs when that is done and dns is refreshed set low ttl, continue"
 read -n1 -r -p "Press space to continue..." key
 
-if [ "$key" = '' ]; then
-echo Installing
-fi
-
 if [ $CLUSTER = true ] ; then 
 chmod 755 $DIR/ansible-hosts-cluster.sh
 sh $DIR/ansible-hosts-cluster.sh
@@ -616,7 +612,6 @@ sh $DIR/ansible-hosts-standalone.sh
 fi 
 #Adding nfs disks
 #tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP tar xvf -
-set -x
 scp -i ~/.ssh/${KEYNAME}.pem $DIR/nfs.setup.sh ec2-user@$NFS00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
 scp -i ~/.ssh/${KEYNAME}.pem ~/.ssh/${KEYNAME}.pem ec2-user@$LAB00PUBLICIP:/home/ec2-user/.ssh/
@@ -648,7 +643,6 @@ echo "Deploying router and registry"
 #ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
 #ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
 
-set -x
 cat << EOF > $DIR/pvconfig
 {
   "apiVersion": "v1",
@@ -756,7 +750,5 @@ scp -ti ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${AWSREGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
-
-
 
 
