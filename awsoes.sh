@@ -554,7 +554,6 @@ cat << EOF > wildcard.json
     ]
 }
 EOF
-fi
 
 
 for x in *.json
@@ -583,6 +582,7 @@ echo $LAB00PUBLICIP
 
 echo *.${DNSOPT}
 echo $INFRANODE00PUBLICIP
+fi
 
 if [ $CLUSTER = true ]; then
 echo master01.${DNSOPT}
