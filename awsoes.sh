@@ -640,8 +640,8 @@ ssh -ti  ~/.ssh/${KEYNAME}.pem -l ec2-user $LAB00PUBLICIP 'sudo ansible-playbook
 #Router and Registry deployment
 echo "Deploying router and registry"
 
-#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace default -o yaml > namespace.default.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: region=infra' namespace.default.yaml ; oc replace -f namespace.default.yaml"
-#ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace default -o yaml > namespace.default.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: region=infra' namespace.default.yaml ; oc replace -f namespace.default.yaml"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
 #ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
 
 cat << EOF > $DIR/pvconfig
@@ -682,8 +682,8 @@ cat << EOF > $DIR/pvclaim
 }
 EOF
 
-scp -ti ~/.ssh/${KEYNAME}.pem $DIR/pvclaim  ec2-user@$MASTER00PUBLICIP:
-scp -ti ~/.ssh/${KEYNAME}.pem $DIR/pvconfig  ec2-user@$MASTER00PUBLICIP:
+scp -i ~/.ssh/${KEYNAME}.pem $DIR/pvclaim  ec2-user@$MASTER00PUBLICIP:
+scp -i ~/.ssh/${KEYNAME}.pem $DIR/pvconfig  ec2-user@$MASTER00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat pvconfig | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat pvclaim | oc create -f -"
 
@@ -699,6 +699,7 @@ sudo htpasswd -b /etc/origin/openshift-passwd testuser flaf42mn
 done
 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc get namespace openshift-infra -o yaml > openshift-infra.yaml ; sed -i  '/annotations/ a \ \ \ \ openshift.io/node-selector: region=infra' openshift-infra.yaml ; oc replace -f openshift-infra.yaml"
+echo creating logging and metrics
 
 cat << EOF > $DIR/sa.json
 apiVersion: v1
@@ -709,11 +710,11 @@ secrets:
 - name: metrics-deployer
 EOF
 
-scp -ti ~/.ssh/${KEYNAME}.pem sa.json  ec2-user@$MASTER00PUBLICIP: 
+scp -i ~/.ssh/${KEYNAME}.pem sa.json  ec2-user@$MASTER00PUBLICIP: 
 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo cat sa.json | oc create -f -" 
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer"
-ssh -it ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster ; sudo  oc secrets new metrics-deployer nothing=/dev/null"
+ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster ; sudo  oc secrets new metrics-deployer nothing=/dev/null"
 
 cat << EOF > $DIR/metrics-vol
 {
@@ -746,8 +747,8 @@ EOF
 
 
 
-scp -ti ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
-scp -ti ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
+scp -i ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
+scp -i ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oc process metrics-deployer-template -n openshift -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/,USE_PERSISTENT_STORAGE=true | oc create -f -"
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=${AWSREGION} ; sudo oc project logging ; sudo oc secrets new logging-deployer nothing=/dev/null"
