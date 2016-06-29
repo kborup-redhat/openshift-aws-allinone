@@ -13,7 +13,7 @@ usage $script_name OPTIONS
 Create an AWS environment running openshift 3.2 under RHEL 7.2
 
 EXAMPLE:
-$script_name --rhuser <username> --rhpool <poolid> --cluster true / false> --awsrhid <rhelImageId> --awsregion <Aws region> --dnsopt=dnsname
+$script_name --rhuser <username> --rhpool <poolid> --cluster true / false> --awsrhid <rhelImageId> --awsregion <Aws region> --dnsopt=dnsname --awsdnszone <ZONEID> --awsdns= true/false
 OPTIONS EXPLAINED: 
 rhuser = your redhat user it
 rhpass = your redhat password 
@@ -80,7 +80,7 @@ exit 1
 }
 
 
-OPTIONS=`getopt -o h -l help -l rhuser: -l rhpool: -l cluster: -l clusterid: -l awsrhid: -l awsregion: -l dnsopt: -- "$@"`
+OPTIONS=`getopt -o h -l help -l rhuser: -l rhpool: -l cluster: -l clusterid: -l awsrhid: -l awsregion: -l dnsopt: -l awsdns: -l awsdnszone: -- "$@"`
 
 if [ $? != 0 ]; then
         usage
@@ -94,6 +94,8 @@ CLUSTERID=""
 AWSRHID=""
 AWSREGION=""
 DNSOPT=""
+AWSDNS=""
+AWSDNSZONE=""
 
 eval set -- "$OPTIONS"
 
@@ -107,10 +109,18 @@ case "$1" in
 	--awsrhid) AWSRHID=$2; shift 2;;
 	--awsregion) AWSREGION=$2; shift 2;;
 	--dnsopt) DNSOPT=$2; shift 2;;
+	--awsdns) AWSDNS=$2; shift 2;;
+	--awsdnszone) AWSDNSZONE=$2; shift 2;;
         --) shift; break;;
         *) usage;;
 esac
 done
+if [ $AWSDNS == true ]; then
+if [ -z "$AWSDNSZONE" ]; then
+usage
+fi
+fi 
+
 if [ ! -f /usr/local/bin/aws ]; then
 	awsmiss
 fi
@@ -124,7 +134,7 @@ stty -echo
 read RHPASS;
 stty echo
 
-if [ -z "$RHPOOL|$CLUSTER|$CLUSTERID|$AWSRHID|$AWSREGION|$DNSOPT" ]; then 
+if [ -z "$RHPOOL|$CLUSTER|$CLUSTERID|$AWSRHID|$AWSREGION|$DNSOPT|$AWSDNS" ]; then 
 	usage
 fi
 
@@ -402,6 +412,158 @@ echo > $DIR/vars.sh
 for x in DNSOPT RHNUSER MASTER00PRIVATIP MASTER00PUBLICIP NODE00PRIVATEIP NODE00PUBLICIP NODE01PRIVATEIP NODE01PUBLICIP LAB00PUBLICIP LAB00PRIVATEIP INFRANODE00PUBLICIP INFRANODE00PRIVATEIP MASTER00PUBLICDNS NODE00PUBLICDNS NODE01PUBLICDNS LAB00PUBLICDNS INFRANODE00PUBLICDNS AWSREGION AZ1 NFS00PUBLICIP NFS00PUBLICDNS NFS00PRIVATEIP MASTER01PUBLICDNS MASTER01PUBLICIP MASTER01PRIVATEIP MASTER02PUBLICDNS MASTER02PRIVATEIP MASTER02PUBLICIP INFRA00PUBLICDNS INFRA00PRIVATEIP INFRA00PUBLICIP INFRA01PUBLICDNS INFRA01PRIVATEIP INFRA01PUBLICIP LOAD00PUBLICDNS LOAD00PRIVATEIP LOAD00PUBLICIP ; do set | grep $x | sed s/x=$x// | grep -v ^$ | grep -v name  >> $DIR/vars.sh ; done
 
 clear
+
+if [ $AWSDNS == true ]; then
+cat << EOF > NODE00.json
+{
+    "Comment": "NODE00",
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "node00.${DNSOPT}.",
+                "Type": "A",
+                "TTL": 30,
+                "ResourceRecords": [
+                    {
+                        "Value": "${NODE00PUBLICIP}"
+                    }
+                ]
+            }
+        }
+    ]
+}
+EOF
+cat << EOF > NODE01.json
+{
+    "Comment": "NODE01",
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "node01.${DNSOPT}.",
+                "Type": "A",
+                "TTL": 30,
+                "ResourceRecords": [
+                    {
+                        "Value": "${NODE01PUBLICIP}"
+                    }
+                ]
+            }
+        }
+    ]
+}
+EOF
+cat << EOF > MASTER00.json
+{
+    "Comment": "MASTER00",
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "master00.${DNSOPT}.",
+                "Type": "A",
+                "TTL": 30,
+                "ResourceRecords": [
+                    {
+                        "Value": "${MASTER00PUBLICIP}"
+                    }
+                ]
+            }
+        }
+    ]
+}
+EOF
+cat << EOF > NFS.json
+{
+    "Comment": "NFS",
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "nfs.${DNSOPT}.",
+                "Type": "A",
+                "TTL": 30,
+                "ResourceRecords": [
+                    {
+                        "Value": "${NFS00PUBLICIP}"
+                    }
+                ]
+            }
+        }
+    ]
+}
+EOF
+cat << EOF > LAB.json
+{
+    "Comment": "LAB",
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "lab.${DNSOPT}.",
+                "Type": "A",
+                "TTL": 30,
+                "ResourceRecords": [
+                    {
+                        "Value": "${LAB00PUBLICIP}"
+                    }
+                ]
+            }
+        }
+    ]
+}
+EOF
+cat << EOF > INFRANODE00.json
+{
+    "Comment": "INFRANODE00",
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "infranode00.${DNSOPT}.",
+                "Type": "A",
+                "TTL": 30,
+                "ResourceRecords": [
+                    {
+                        "Value": "${INFRANODE00PUBLICIP}"
+                    }
+                ]
+            }
+        }
+    ]
+}
+EOF
+
+cat << EOF > wildcard.json
+{
+    "Comment": "wildcard",
+    "Changes": [
+        {
+            "Action": "CREATE",
+            "ResourceRecordSet": {
+                "Name": "\*.${DNSOPT}.",
+                "Type": "A",
+                "TTL": 30,
+                "ResourceRecords": [
+                    {
+                        "Value": "${INFRANODE00PUBLICIP}"
+                    }
+                ]
+            }
+        }
+    ]
+}
+EOF
+
+
+
+for x in *.json
+do
+aws route53 change-resource-record-sets --hosted-zone-id $AWSDNSZONE --change-batch file://$x;
+done
+
+else 
 echo master00.${DNSOPT}
 echo $MASTER00PUBLICIP
 
@@ -437,12 +599,13 @@ echo loadbalancer.${DNSOPT}
 echo $LOAD00PUBLICIP
 fi
 
-
 echo "Create your DNS manually and point to the right IPs when that is done and dns is refreshed set low ttl, continue"
 read -n1 -r -p "Press space to continue..." key
 
 if [ "$key" = '' ]; then
-set -x
+echo Installing
+fi
+
 if [ $CLUSTER = true ] ; then 
 chmod 755 $DIR/ansible-hosts-cluster.sh
 sh $DIR/ansible-hosts-cluster.sh
@@ -453,7 +616,7 @@ sh $DIR/ansible-hosts-standalone.sh
 fi 
 #Adding nfs disks
 #tar cvf - nfs.setup.sh | ssh -i ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP tar xvf -
-
+set -x
 scp -i ~/.ssh/${KEYNAME}.pem $DIR/nfs.setup.sh ec2-user@$NFS00PUBLICIP:
 ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $NFS00PUBLICIP "sudo bash /home/ec2-user/nfs.setup.sh"
 scp -i ~/.ssh/${KEYNAME}.pem ~/.ssh/${KEYNAME}.pem ec2-user@$LAB00PUBLICIP:/home/ec2-user/.ssh/
@@ -485,7 +648,7 @@ echo "Deploying router and registry"
 #ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm registry --replicas=1 --create --credentials=/etc/origin/master/openshift-registry.kubeconfig --images='registry.access.redhat.com/openshift3/ose-docker-registry:latest'"
 #ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user $MASTER00PUBLICIP "sudo oadm router router --replicas=1 -service-account=router --stats-password='awslab' --images='registry.access.redhat.com/openshift3/ose-haproxy-router:latest'"
 
-
+set -x
 cat << EOF > $DIR/pvconfig
 {
   "apiVersion": "v1",
@@ -506,7 +669,6 @@ cat << EOF > $DIR/pvconfig
 }
 
 EOF
-
 cat << EOF > $DIR/pvclaim
 {
   "apiVersion": "v1",
