@@ -28,12 +28,9 @@ Default output format [text]:
 
 If you dont know how to get your keys here is the manual.
 In AWS console: 
-Open the Identity and Access Management (IAM) console.
-From the navigation menu, click Users.
-Select your IAM user name.
-Click User Actions, and then click Manage Access Keys.
-Click Create Access Key.
-Select Show User Security Credentials
+ > Click on your Name in the right corner, 
+ > Click Security credentials
+ > press the button "Create new access key" , this will ask you to download the access key. which you should.
 
 Regions are displayed here: 
 
