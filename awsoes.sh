@@ -684,7 +684,7 @@ do
 $RS ${node} "
 sudo yum -y install httpd-tools
 sudo touch /etc/origin/openshift-passwd
-sudo htpasswd -b /etc/origin/openshift-passwd testuser flaf42mn
+sudo htpasswd -b /etc/origin/openshift-passwd testuser testuser
 ";
 done
 
