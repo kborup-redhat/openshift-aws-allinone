@@ -141,37 +141,41 @@ fi
 
 RS="ssh -ti ~/.ssh/${KEYNAME}.pem -l ec2-user"
 
-echo "Creating VPC Network"
-VPCID=`aws ec2 create-vpc --cidr-block 192.168.0.0/24 --output text | awk '{print $7}'`
-aws ec2 create-tags --resource $VPCID --tags Key=deployment,Value=paas Key=Name,Value=${CLUSTERID}_vpc
-aws ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-support "{\"Value\":true}"
-aws ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-hostnames "{\"Value\":true}"
-echo "VPC Created"
-
-echo "Creating Gateway"
-INTERNETGWID=`aws ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId' --output text`
-aws ec2 create-tags --resource $INTERNETGWID --tags Key=deployment,Value=paas Key=type,Value=gateway Key=Name,Value=${CLUSTERID}_DMZSubnet
-aws ec2 attach-internet-gateway --internet-gateway-id $INTERNETGWID --vpc-id $VPCID
-echo "Gateway Created"
+echo "Changing default region"
+aws configure set region ${AWSREGION}
 
 echo "Setting Region IDS"
-REGIONIDS=`aws ec2 describe-availability-zones --region ${AWSREGION}  --output json | grep ZoneName | xargs`
+REGIONIDS=`aws ec2 describe-availability-zones   --output json | grep ZoneName | xargs`
 AZ1=`echo $REGIONIDS | awk '{print $2}'`
 AZ2=`echo $REGIONIDS | awk '{print $4}'`
 AZ3=`echo $REGIONIDS | awk '{print $6}'`
 
+echo "Creating VPC Network"
+VPCID=`aws ec2 create-vpc --cidr-block 192.168.0.0/24 --output text | awk '{print $7}'`
+aws  ec2 create-tags --resource $VPCID --tags Key=deployment,Value=paas Key=Name,Value=${CLUSTERID}_vpc
+aws  ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-support "{\"Value\":true}"
+aws  ec2 modify-vpc-attribute --vpc-id $VPCID --enable-dns-hostnames "{\"Value\":true}"
+echo "VPC Created"
+
+echo "Creating Gateway"
+INTERNETGWID=`aws  ec2 create-internet-gateway --query 'InternetGateway.InternetGatewayId' --output text`
+aws  ec2 create-tags --resource $INTERNETGWID --tags Key=deployment,Value=paas Key=type,Value=gateway Key=Name,Value=${CLUSTERID}_DMZSubnet
+aws  ec2 attach-internet-gateway --internet-gateway-id $INTERNETGWID --vpc-id $VPCID
+echo "Gateway Created"
+
+
 echo "Creating SubnetID"
-DMZSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.0/26  --availability-zone $AZ1 --query 'Subnet.SubnetId' --output text`
-aws ec2 create-tags --resource $DMZSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_DMZSubnet
-INTERNALSUBNETID=`aws ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.128/26 --availability-zone $AZ1 --query 'Subnet.SubnetId' --output text`
+DMZSUBNETID=`aws  ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.0/26  --availability-zone $AZ1 --query 'Subnet.SubnetId' --output text`
+aws  ec2 create-tags --resource $DMZSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_DMZSubnet
+INTERNALSUBNETID=`aws  ec2 create-subnet --vpc-id $VPCID --cidr-block 192.168.0.128/26 --availability-zone $AZ1 --query 'Subnet.SubnetId' --output text`
 aws ec2 create-tags --resource $INTERNALSUBNETID --tags Key=deployment,Value=paas Key=type,Value=subnet Key=Name,Value=${CLUSTERID}_INTERNALSubnet
-EXTERNALROUTETABLEID=`aws ec2 create-route-table --vpc-id $VPCID --query 'RouteTable.RouteTableId' --output text`
+EXTERNALROUTETABLEID=`aws  ec2 create-route-table --vpc-id $VPCID --query 'RouteTable.RouteTableId' --output text`
 echo "Subnet ID Created"
 
 echo "Creating Route"
-aws ec2 create-route --route-table-id $EXTERNALROUTETABLEID --destination-cidr-block 0.0.0.0/0 --gateway-id $INTERNETGWID
-aws ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $DMZSUBNETID
-aws ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $INTERNALSUBNETID
+aws  ec2 create-route --route-table-id $EXTERNALROUTETABLEID --destination-cidr-block 0.0.0.0/0 --gateway-id $INTERNETGWID
+aws  ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $DMZSUBNETID
+aws  ec2 associate-route-table --route-table-id $EXTERNALROUTETABLEID --subnet-id $INTERNALSUBNETID
 echo "Done Creating Routes"
 
 #Service groups are hardcoded should we change that ?
@@ -181,51 +185,51 @@ NSGNAME=nodesg
 NFSNAME=nfssg
 
 echo "Creating security Groups"
-MASTERSGID=`aws ec2 create-security-group --group-name $MASGNAME --description "Masters Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
-aws ec2 create-tags --resource $MASTERSGID --tags Key=deployment,Value=pass Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${MASGNAME}
-INFRASGID=`aws ec2 create-security-group --group-name $INSGNAME --description "Infra Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
-aws ec2 create-tags --resource $INFRASGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${INSGNAME}
-NODESGID=`aws ec2 create-security-group --group-name $NSGNAME --description "Compute Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
-aws ec2 create-tags --resource $NODESGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NSSGNAME}
-NFSSGID=`aws ec2 create-security-group --group-name $NFSNAME --description "NFS Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
-aws ec2 create-tags --resource $NFSSGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NFSNAME}
+MASTERSGID=`aws  ec2 create-security-group --group-name $MASGNAME --description "Masters Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws  ec2 create-tags --resource $MASTERSGID --tags Key=deployment,Value=pass Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${MASGNAME}
+INFRASGID=`aws  ec2 create-security-group --group-name $INSGNAME --description "Infra Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws  ec2 create-tags --resource $INFRASGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${INSGNAME}
+NODESGID=`aws  ec2 create-security-group --group-name $NSGNAME --description "Compute Nodes Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws  ec2 create-tags --resource $NODESGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NSSGNAME}
+NFSSGID=`aws  ec2 create-security-group --group-name $NFSNAME --description "NFS Security Group" --vpc-id $VPCID --query 'GroupId' --output text`
+aws  ec2 create-tags --resource $NFSSGID --tags Key=deployment,Value=paas Key=type,Value=SecGroup Key=Name,Value=${CLUSTERID}_${NFSNAME}
 echo "Done Creating Security Groups"
 
 echo "Creating firewalls as per version 3.1 will be updated before final release"
 
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 22 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 4789 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 8053 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --cidr 0.0.0.0/0
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 4789 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 8443 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 8053 --source-group $NODESGID
 
 
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 53 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $INFRASGID
-aws ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 53 --source-group $INFRASGID
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 53 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol tcp --port 53 --source-group $INFRASGID
+aws  ec2 authorize-security-group-ingress --group-id $MASTERSGID --protocol udp --port 53 --source-group $INFRASGID
 
-aws ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 22 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 80 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 443 --cidr 0.0.0.0/0
+aws  ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws  ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 80 --cidr 0.0.0.0/0
+aws  ec2 authorize-security-group-ingress --group-id $INFRASGID --protocol tcp --port 443 --cidr 0.0.0.0/0
 
-aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --port 22 --cidr 0.0.0.0/0
-aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --port 10250 --source-group $MASTERSGID
-aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $MASTERSGID
-aws ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws  ec2 authorize-security-group-ingress --group-id $NODESGID --protocol tcp --port 10250 --source-group $MASTERSGID
+aws  ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $MASTERSGID
+aws  ec2 authorize-security-group-ingress --group-id $NODESGID --protocol udp --port 4789 --source-group $NODESGID
 
 #Setting NFS.
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 111 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 2049 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 20048 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 50825 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 53248 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 111 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 2049 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 20048 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 50825 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 53248 --source-group $NODESGID
-aws ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 22 --cidr 0.0.0.0/0
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 111 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 2049 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 20048 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 50825 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 53248 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 111 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 2049 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 20048 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 50825 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol udp --port 53248 --source-group $NODESGID
+aws  ec2 authorize-security-group-ingress --group-id $NFSSGID --protocol tcp --port 22 --cidr 0.0.0.0/0
 
 
 echo "Setting AWS RedHat Image Name"
@@ -378,7 +382,7 @@ sudo yum update -y
 echo Installing Docker on ${node}
 sudo yum install docker -y
 sudo cp /etc/sysconfig/docker /etc/sysconfig/docker.original
-sudo sed -i 's/--selinux-enabled/--selinux-enabled --insecure-registry 172.30.0.0\/0/' /etc/sysconfig/docker 
+sudo sed -i 's/--selinux-enabled/--selinux-enabled --insecure-registry 172.172.0.0\/0/' /etc/sysconfig/docker 
 sudo reboot
 " ; done
 echo "sleeping until all nodes are back up"
@@ -698,9 +702,9 @@ EOF
 
 scp -i ~/.ssh/${KEYNAME}.pem sa.json  ec2-user@$MASTER00PUBLICIP: 
 
-$RS $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat /home/ec2-user/sa.json | oc create -f -" 
-$RS $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer"
-$RS $MASTER00PUBLICIP "sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster ; sudo  oc secrets new metrics-deployer nothing=/dev/null"
+$RS $MASTER00PUBLICIP "oc project openshift-infra && cat /home/ec2-user/sa.json | oc create -f -" 
+$RS $MASTER00PUBLICIP "oc project openshift-infra && oadm policy add-role-to-user edit system:serviceaccount:openshift-infra:metrics-deployer"
+$RS $MASTER00PUBLICIP "oc project openshift-infra && oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:openshift-infra:heapster && oc secrets new metrics-deployer nothing=/dev/null"
 
 cat << EOF > $DIR/metrics-vol
 {
@@ -735,8 +739,9 @@ EOF
 
 scp -i ~/.ssh/${KEYNAME}.pem $DIR/metrics-vol  ec2-user@$MASTER00PUBLICIP:
 scp -i ~/.ssh/${KEYNAME}.pem $DIR/logging-sa ec2-user@$MASTER00PUBLICIP:
-$RS $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo cat metrics-vol | oc create -f -"
-$RS $MASTER00PUBLICIP "sudo oc project openshift-infra ; sudo oc process -f metrics-deployer.yaml -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},CASSANDRA_PV_SIZE=10Gi |  oc create -f -"
-$RS $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=infra ; sudo oc project logging ;  sudo oc secrets new logging-deployer nothing=/dev/null ; sudo cat logging-sa | oc create -f - ; sudo oc policy add-role-to-user edit system:serviceaccount:logging:logging-deployer ; sudo oadm policy add-scc-to-user privileged system:serviceaccount:logging:aggregated-logging-fluentd ; sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:logging:aggregated-logging-fluentd ; sudo oc process logging-deployer-template -n openshift -v KIBANA_HOSTNAME=kibana.${DNSOPT} -v ES_CLUSTER_SIZE=1 -v ES_INSTANCE_RAM=1024M -v PUBLIC_MASTER_URL=https://master00.${DNSOPT}:8443 -v ENABLE_OPS_CLUSTER=false -v IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/ | oc create -f - ; sudo oc get dc `oc get dc | grep logging-es | awk '{print $1}'` -o json | sed '/containers/i "nodeSelector": { "env": "dev" },' | oc replace -f -"
+$RS $MASTER00PUBLICIP "oc project openshift-infra && cat /home/ec2-user/metrics-vol | oc create -f -"
+$RS $MASTER00PUBLICIP "cp /usr/share/openshift/examples/infrastructure-templates/enterprise/metrics-deployer.yaml /home/ec2-user/ ; oc project openshift-infra && oc process -f /home/ec2-user/metrics-deployer.yaml -v HAWKULAR_METRICS_HOSTNAME=hawkular-metrics.${DNSOPT},CASSANDRA_PV_SIZE=10Gi |  oc create -f -"
+$RS $MASTER00PUBLICIP "sudo oadm new-project logging --node-selector region=infra ; oc project logging &&  oc secrets new logging-deployer nothing=/dev/null && cat /home/ec2-user/logging-sa | oc create -f - && oc policy add-role-to-user edit system:serviceaccount:logging:logging-deployer && sudo oadm policy add-scc-to-user privileged system:serviceaccount:logging:aggregated-logging-fluentd && sudo oadm policy add-cluster-role-to-user cluster-reader system:serviceaccount:logging:aggregated-logging-fluentd && oc process logging-deployer-template -n openshift -v KIBANA_HOSTNAME=kibana.${DNSOPT} -v ES_CLUSTER_SIZE=1 -v ES_INSTANCE_RAM=1024M -v PUBLIC_MASTER_URL=https://master00.${DNSOPT}:8443 -v ENABLE_OPS_CLUSTER=false -v IMAGE_VERSION=latest,IMAGE_PREFIX=registry.access.redhat.com/openshift3/ | oc create -f - "
 
 
+#; sudo oc get dc `oc get dc | grep logging-es | awk '{print $1}'` -o json | sed '/containers/i "nodeSelector": { "env": "dev" },' | oc replace -f -"
