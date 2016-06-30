@@ -50,7 +50,7 @@ REGIONS        ec2.us-west-2.amazonaws.com     us-west-2
 
 rhpool = from from "subscription-manager list --avalibale --all" (take the repo with openshift in it its the long number)
 
-awsrhid = this is the ID from your AWS console LAUNCH Instance you can pick Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type - ami-775e4f16 (take the ami- number and insert here)
+awsrhid = this is the ID from your AWS console LAUNCH Instance you can pick Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type - ami-775e4f16 (take the ami- number and insert here) (REMBER TO BE IN THE ZONE YOU WANT TO DEPLOY IN THEY ARE DIFFRENT)
 
 awsregion = use one of the regions listed
 
